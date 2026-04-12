@@ -191,6 +191,57 @@ def get_documents(current_user: models.User = Depends(auth.get_current_user)):
 
 # --- VOICE AI ---
 
+from pydantic import BaseModel
+
+class ChatRequest(BaseModel):
+    query: str
+
+@app.post("/chat-completions")
+async def chat_completions(req: ChatRequest, current_user: models.User = Depends(auth.get_current_user)):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API Key missing")
+
+    if current_user.current_mode == "personal":
+        instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
+        instr += "CRITICAL: Your entire personality, history, and knowledge are derived EXCLUSIVELY from the provided training guide. "
+        instr += "You are an expert mapped exactly to the holistic lifestyle outlined below.\n"
+        
+        try:
+            with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
+                training_content = f.read()
+            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
+        except FileNotFoundError:
+            pass
+
+        instr += "Always speak in the FIRST PERSON ('I am...', 'My philosophy is...') to maintain the illusion of being the user's replica."
+    else:
+        instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
+        if current_user.jira_config:
+            instr += f"Jira is connected to {current_user.jira_config.domain}. "
+        if current_user.google_calendar_config:
+            instr += "Google Calendar is connected. "
+        instr += "Prioritize connected services for work and scheduling tasks."
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": instr},
+                    {"role": "user", "content": req.query}
+                ],
+                "temperature": 0.7
+            },
+            timeout=30.0
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        data = response.json()
+        return {"response": data["choices"][0]["message"]["content"]}
+
 @app.post("/auth/realtime-session")
 async def get_realtime_session(current_user: models.User = Depends(auth.get_current_user)):
     api_key = os.getenv("OPENAI_API_KEY")
@@ -199,11 +250,17 @@ async def get_realtime_session(current_user: models.User = Depends(auth.get_curr
 
     if current_user.current_mode == "personal":
         instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
-        instr += "CRITICAL: Your entire personality, history, and knowledge are derived EXCLUSIVELY from the user's documents. "
-        instr += "You are a 'Blank Slate' until you find information in the knowledge base. "
-        instr += "Always call 'query_personal_knowledge' for every query to find relevant instructions or facts. "
-        instr += "If you find nothing, politely inform the user that you haven't 'learned' that about them yet. "
-        instr += "Speak in the FIRST PERSON ('I am...', 'I remember...') to maintain the illusion of being the user's replica."
+        instr += "CRITICAL: Your entire personality, history, and knowledge are derived EXCLUSIVELY from the provided training guide. "
+        instr += "You are an expert mapped exactly to the holistic lifestyle outlined below.\n"
+        
+        try:
+            with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
+                training_content = f.read()
+            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
+        except FileNotFoundError:
+            pass
+
+        instr += "Always speak in the FIRST PERSON ('I am...', 'My philosophy is...') to maintain the illusion of being the user's replica."
     else:
         instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
         if current_user.jira_config:
