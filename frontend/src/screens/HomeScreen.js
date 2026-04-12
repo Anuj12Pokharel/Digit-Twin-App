@@ -6,6 +6,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RTCView } from 'react-native-webrtc';
+import RealtimeService from '../services/RealtimeService';
+import api from '../api/api';
 
 const CYAN = '#0cdbbc';
 
@@ -28,10 +31,12 @@ export default function HomeScreen({ navigation }) {
   const [integrations, setIntegrations] = useState({ jira: false, calendly: false });
   const [connecting, setConnecting] = useState({ jira: false, calendly: false });
   
+  // Realtime Streams
+  const [remoteStream, setRemoteStream] = useState(null);
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const blinkAnim = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef(null);
-  const transcriptionTimer = useRef(null);
 
   useEffect(() => {
     if (isListening) {
@@ -67,9 +72,9 @@ export default function HomeScreen({ navigation }) {
   const switchMode = (newMode) => {
     if (mode === newMode) return;
     
-    // Stop any active listening on the old mode
+    // Stop any active real-time listening on the old mode
     if (isListening) {
-      stopMockTranscription();
+      toggleVoice(true); // force stop
     }
     
     setMode(newMode);
@@ -91,7 +96,7 @@ export default function HomeScreen({ navigation }) {
             ...prev,
             [newMode]: [...prev[newMode], { 
               id: Date.now().toString(), 
-              text: newMode === 'work' ? 'Work context successfully loaded.' : 'Personal context successfully loaded.', 
+              text: newMode === 'work' ? 'Work context successfully loaded. Standing by.' : 'Personal context initialized based on your holistic guide.', 
               sender: 'twin' 
             }]
           }));
@@ -100,7 +105,7 @@ export default function HomeScreen({ navigation }) {
     });
   };
 
-  const sendMessage = (text) => {
+  const sendMessage = async (text) => {
     if (!text.trim()) return;
     
     const userMsg = { id: Date.now().toString(), text, sender: 'user' };
@@ -108,83 +113,82 @@ export default function HomeScreen({ navigation }) {
     setInputText('');
     Keyboard.dismiss();
 
-    setTimeout(() => {
+    try {
+      const res = await api.post('/chat-completions', { query: text });
       setMessages(prev => ({ 
         ...prev, 
-        [mode]: [...prev[mode], { id: (Date.now() + 1).toString(), text: `Processing request via ${mode} protocol...`, sender: 'twin' }] 
+        [mode]: [...prev[mode], { id: (Date.now() + 1).toString(), text: res.data.response, sender: 'twin' }] 
       }));
-    }, 1000);
+    } catch (err) {
+      console.log('Chat API Error:', err);
+      setMessages(prev => ({ 
+        ...prev, 
+        [mode]: [...prev[mode], { id: (Date.now() + 1).toString(), text: "Network Error: Could not reach the API.", sender: 'system' }] 
+      }));
+    }
   };
 
-  const startMockTranscription = () => {
-    setIsListening(true);
-    setMessages(prev => ({
-      ...prev,
-      [mode]: [...prev[mode], { 
-        id: 'transcription', 
-        text: '...', 
-        sender: 'user', 
-        isTranscription: true 
-      }]
-    }));
-
-    const words = mode === 'work' 
-      ? ["Schedule", " a", " meeting", " with", " my", " team", " via", " Calendly."]
-      : ["Update", " my", " personal", " journal", " entry", " for", " today", " please."];
-    
-    let currentText = "";
-    let i = 0;
-    
-    transcriptionTimer.current = setInterval(() => {
-      if (i < words.length) {
-        currentText += words[i];
-        setMessages(current => ({
-          ...current,
-          [mode]: current[mode].map(m => 
-            m.id === 'transcription' ? { ...m, text: currentText } : m
-          )
-        }));
-        i++;
-      } else {
-        clearInterval(transcriptionTimer.current);
-      }
-    }, 400); 
-  };
-
-  const stopMockTranscription = () => {
-    setIsListening(false);
-    clearInterval(transcriptionTimer.current);
-    
-    setMessages(prev => {
-      const transMsg = prev[mode].find(m => m.id === 'transcription');
-      const filtered = prev[mode].filter(m => m.id !== 'transcription');
-      const finalText = transMsg && transMsg.text !== '...' ? transMsg.text : 'Voice command captured.';
+  const toggleVoice = async (forceStop = false) => {
+    if (isListening || forceStop) {
+      // STOP SESSION
+      RealtimeService.stopSession();
+      setIsListening(false);
+      setRemoteStream(null);
       
-      return {
-        ...prev,
-        [mode]: [...filtered, { id: Date.now().toString(), text: finalText, sender: 'user' }]
-      };
-    });
-    
-    setTimeout(() => {
+      setMessages(prev => {
+        const transMsg = prev[mode].find(m => m.id === 'transcription');
+        const filtered = prev[mode].filter(m => m.id !== 'transcription');
+        const finalText = transMsg && transMsg.text && transMsg.text !== '...' ? transMsg.text : 'Voice connection closed.';
+        
+        return {
+          ...prev,
+          [mode]: [...filtered, { id: Date.now().toString(), text: finalText, sender: 'user' }]
+        };
+      });
+      
+    } else {
+      // START SESSION
+      setIsListening(true);
       setMessages(prev => ({
         ...prev,
         [mode]: [...prev[mode], { 
-          id: (Date.now() + 1).toString(), 
-          text: integrations.calendly && mode === 'work' 
-            ? `Scheduling your meeting via Calendly integration right now...` 
-            : `Analyzing voice command in ${mode} mode...`, 
-          sender: 'twin' 
+          id: 'transcription', 
+          text: '...', 
+          sender: 'user', 
+          isTranscription: true 
         }]
       }));
-    }, 1000);
-  };
 
-  const toggleVoice = () => {
-    if (isListening) {
-      stopMockTranscription();
-    } else {
-      startMockTranscription();
+      let currentTranscript = "";
+
+      const attemptConnect = async () => {
+        const success = await RealtimeService.startSession(
+          (delta) => {
+             currentTranscript += delta;
+             setMessages(current => ({
+               ...current,
+               [mode]: current[mode].map(m => 
+                 m.id === 'transcription' ? { ...m, text: currentTranscript } : m
+               )
+             }));
+          },
+          (stream) => {
+             setRemoteStream(stream);
+          }
+        );
+
+        if (!success) {
+           alert("Unable to establish WebRTC connection with the backend. Check your network or server status.");
+           setIsListening(false);
+           setRemoteStream(null);
+           setMessages(current => ({
+             ...current,
+             [mode]: current[mode].filter(m => m.id !== 'transcription')
+           }));
+        }
+      };
+
+      attemptConnect();
     }
   };
 
@@ -219,6 +223,11 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       
+      {/* Invisible WebRTC Audio View */}
+      {remoteStream && (
+        <RTCView streamURL={remoteStream.toURL()} style={{ width: 0, height: 0, opacity: 0 }} />
+      )}
+
       {/* Header & Mode Switcher */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -315,7 +324,7 @@ export default function HomeScreen({ navigation }) {
           <Animated.View style={[styles.voiceButtonContainer, { transform: [{ scale: pulseAnim }] }]}>
             <TouchableOpacity 
               style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-              onPress={toggleVoice}
+              onPress={() => toggleVoice(false)}
             >
                <Animated.Text style={[styles.voiceIcon, isListening && { color: '#000' }]}>
                  {isListening ? '🛑' : '🎙️'}
