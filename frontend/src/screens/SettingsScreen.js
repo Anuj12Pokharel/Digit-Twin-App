@@ -35,14 +35,26 @@ export default function SettingsScreen({ navigation, onLogout }) {
     { icon: '📄', label: 'Privacy & Policy', route: 'PrivacyPolicy' },
   ];
 
+  const theme = {
+    gradient: darkMode ? ['#0F172A', '#1E293B', '#0F172A'] : ['#F8FBFF', '#EBF4FF', '#D6EAFF'],
+    text: darkMode ? '#F8FAFC' : '#0F172A',
+    textSecondary: darkMode ? '#94A3B8' : '#64748B',
+    card: darkMode ? '#1E293B' : '#FFFFFF',
+    cardText: darkMode ? '#F8FAFC' : '#1E293B',
+    backBtnBg: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)',
+    modalOverlay: darkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)',
+    borderColor: darkMode ? '#334155' : '#E2E8F0',
+    signOutBg: darkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
+  };
+
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: theme.backBtnBg }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Profile</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -62,8 +74,8 @@ export default function SettingsScreen({ navigation, onLogout }) {
               )}
             </TouchableOpacity>
             <View>
-              <Text style={styles.userName}>{user?.full_name || 'Your Name'}</Text>
-              <Text style={styles.userEmail}>{user?.email || ''}</Text>
+              <Text style={[styles.userName, { color: theme.text }]}>{user?.full_name || 'Your Name'}</Text>
+              <Text style={[styles.userEmail, { color: theme.textSecondary }]}>{user?.email || ''}</Text>
             </View>
           </View>
 
@@ -72,23 +84,23 @@ export default function SettingsScreen({ navigation, onLogout }) {
             {menuItems.map((item, idx) => (
               <TouchableOpacity
                 key={idx}
-                style={styles.menuItem}
+                style={[styles.menuItem, { backgroundColor: theme.card }]}
                 onPress={() => item.route && navigation.navigate(item.route)}
                 activeOpacity={0.7}
               >
                 <View style={styles.menuLeft}>
                   <Text style={styles.menuIcon}>{item.icon}</Text>
-                  <Text style={styles.menuLabel}>{item.label}</Text>
+                  <Text style={[styles.menuLabel, { color: theme.cardText }]}>{item.label}</Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
             ))}
 
             {/* Dark Mode Toggle */}
-            <View style={styles.menuItem}>
+            <View style={[styles.menuItem, { backgroundColor: theme.card }]}>
               <View style={styles.menuLeft}>
                 <Text style={styles.menuIcon}>👁️</Text>
-                <Text style={styles.menuLabel}>Dark Mode</Text>
+                <Text style={[styles.menuLabel, { color: theme.cardText }]}>Dark Mode</Text>
               </View>
               <Switch
                 value={darkMode}
@@ -100,7 +112,7 @@ export default function SettingsScreen({ navigation, onLogout }) {
           </View>
 
           {/* Sign Out */}
-          <TouchableOpacity style={styles.signOutBtn} onPress={() => setShowLogoutModal(true)}>
+          <TouchableOpacity style={[styles.signOutBtn, { backgroundColor: theme.signOutBg }]} onPress={() => setShowLogoutModal(true)}>
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -112,10 +124,10 @@ export default function SettingsScreen({ navigation, onLogout }) {
         transparent={true}
         animationType="fade"
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Are you sure you want{'\n'}to logout?</Text>
-            <Text style={styles.modalDesc}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Are you sure you want{'\n'}to logout?</Text>
+            <Text style={[styles.modalDesc, { color: theme.textSecondary }]}>
               Make sure you've saved your work or completed any ongoing tasks before logging out.
             </Text>
             
@@ -123,13 +135,13 @@ export default function SettingsScreen({ navigation, onLogout }) {
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowLogoutModal(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalLogoutBtn} onPress={confirmLogout}>
-                <Text style={styles.modalLogoutText}>Log Out</Text>
+              <TouchableOpacity style={[styles.modalLogoutBtn, { borderColor: theme.borderColor }]} onPress={confirmLogout}>
+                <Text style={[styles.modalLogoutText, { color: theme.text }]}>Log Out</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.modalCloseIcon} onPress={() => setShowLogoutModal(false)}>
-              <Text style={{fontSize: 20, color: '#64748B'}}>✕</Text>
+            <TouchableOpacity style={[styles.modalCloseIcon, { backgroundColor: theme.card }]} onPress={() => setShowLogoutModal(false)}>
+              <Text style={{fontSize: 20, color: theme.textSecondary }}>✕</Text>
             </TouchableOpacity>
           </View>
         </View>
