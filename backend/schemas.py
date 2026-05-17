@@ -25,6 +25,10 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     current_mode: Optional[str] = None
     avatar_url: Optional[str] = None
+    slack_connected: Optional[bool] = None
+    github_connected: Optional[bool] = None
+    jira_connected: Optional[bool] = None
+    calendar_connected: Optional[bool] = None
 
 # Jira schemas
 class JiraConfigBase(BaseModel):
@@ -60,6 +64,14 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     pass
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[datetime] = None
+    project_id: Optional[int] = None
 
 class TaskResponse(TaskBase):
     id: int
@@ -106,6 +118,10 @@ class UserResponse(UserBase):
     id: int
     current_mode: str
     avatar_url: Optional[str] = None
+    slack_connected: bool = False
+    github_connected: bool = False
+    jira_connected: bool = False
+    calendar_connected: bool = False
     jira_config: Optional[JiraConfigResponse] = None
     google_calendar_config: Optional[GoogleCalendarConfigResponse] = None
     projects: List[ProjectResponse] = []
@@ -124,3 +140,17 @@ class TokenData(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     id_token: str
+
+# ── Password reset flow ───────────────────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class VerifyOTPRequest(BaseModel):
+    email: EmailStr
+    code: str           # 6-digit string the user enters
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str           # re-verified server-side before applying
+    new_password: str   # min length enforced in the endpoint

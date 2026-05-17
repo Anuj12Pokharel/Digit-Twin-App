@@ -1,9 +1,16 @@
-from fastapi import FastAPI, Depends, HTTPException, status, Query
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from the backend directory
+load_dotenv(Path(__file__).parent / ".env")
+
+from fastapi import FastAPI, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-import os
 from typing import List
 from . import models, schemas, database, auth, tools
 from .database import engine
@@ -14,7 +21,12 @@ from datetime import datetime, timedelta
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Digital Twin (Jira Enabled)")
+app = FastAPI(title="Digit Twin API", version="1.0.0")
+
+# Ensure uploads directory exists and serve it as static files
+UPLOADS_DIR = Path(__file__).parent / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Configure CORS
 app.add_middleware(
@@ -57,6 +69,138 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @app.get("/me", response_model=schemas.UserResponse)
 def read_users_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
+
+@app.patch("/users/me", response_model=schemas.UserResponse)
+def update_me(
+    payload: schemas.UserUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(current_user, field, value)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+@app.post("/users/me/avatar", response_model=schemas.UserResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    # Validate file type
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="File must be an image.")
+    # Build a unique filename: user_<id>.<ext>
+    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
+    filename = f"user_{current_user.id}.{ext}"
+    save_path = UPLOADS_DIR / filename
+    contents = await file.read()
+    with open(save_path, "wb") as f:
+        f.write(contents)
+    # Store the public URL in the DB
+    current_user.avatar_url = f"/uploads/{filename}"
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+# --- PASSWORD RESET (OTP flow) ---
+
+import random
+import string
+
+def _generate_otp(length: int = 6) -> str:
+    return "".join(random.choices(string.digits, k=length))
+
+def _get_valid_otp(email: str, code: str, db: Session):
+    """Return the OTPCode row if it exists, is unexpired, and unused."""
+    now = datetime.utcnow()
+    return (
+        db.query(models.OTPCode)
+        .filter(
+            models.OTPCode.email == email,
+            models.OTPCode.code == code,
+            models.OTPCode.expires_at > now,
+            models.OTPCode.used_at == None,  # noqa: E711
+        )
+        .first()
+    )
+
+@app.post("/auth/forgot-password")
+def forgot_password(
+    req: schemas.ForgotPasswordRequest,
+    db: Session = Depends(database.get_db),
+):
+    """
+    Generate a 6-digit OTP and store it.
+    In production: send via email (SMTP / SendGrid / SES).
+    For now: returns the code in the response body for dev convenience.
+    """
+    user = db.query(models.User).filter(models.User.email == req.email).first()
+    if not user:
+        # Return 200 even for unknown email to avoid user enumeration
+        return {"detail": "If that email exists, an OTP has been sent."}
+
+    # Invalidate any existing unused OTPs for this email
+    db.query(models.OTPCode).filter(
+        models.OTPCode.email == req.email,
+        models.OTPCode.used_at == None,  # noqa: E711
+    ).delete()
+    db.commit()
+
+    code = _generate_otp()
+    otp = models.OTPCode(
+        email=req.email,
+        code=code,
+        expires_at=datetime.utcnow() + timedelta(minutes=10),
+    )
+    db.add(otp)
+    db.commit()
+
+    # TODO: replace with real email delivery
+    print(f"[DEV] OTP for {req.email}: {code}")
+
+    return {
+        "detail": "OTP sent to your email.",
+        # Remove `otp` field before going to production!
+        "otp": code,
+    }
+
+@app.post("/auth/verify-otp")
+def verify_otp(
+    req: schemas.VerifyOTPRequest,
+    db: Session = Depends(database.get_db),
+):
+    """Check that the OTP is valid (does NOT consume it — consumption happens at reset)."""
+    otp = _get_valid_otp(req.email, req.code, db)
+    if not otp:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
+    return {"detail": "OTP verified."}
+
+@app.post("/auth/reset-password")
+def reset_password(
+    req: schemas.ResetPasswordRequest,
+    db: Session = Depends(database.get_db),
+):
+    """Verify OTP one final time, then update the user's password."""
+    if len(req.new_password) < 6:
+        raise HTTPException(status_code=422, detail="Password must be at least 6 characters.")
+
+    otp = _get_valid_otp(req.email, req.code, db)
+    if not otp:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP.")
+
+    user = db.query(models.User).filter(models.User.email == req.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # Mark OTP as used
+    otp.used_at = datetime.utcnow()
+    # Update password
+    user.hashed_password = auth.get_password_hash(req.new_password)
+    db.commit()
+
+    return {"detail": "Password updated successfully."}
 
 # --- JIRA ---
 
@@ -157,15 +301,41 @@ def create_task(task: schemas.TaskCreate, current_user: models.User = Depends(au
     db.refresh(db_task)
     return db_task
 
+@app.get("/tasks", response_model=List[schemas.TaskResponse])
+def get_tasks(current_user: models.User = Depends(auth.get_current_user)):
+    return current_user.tasks
+
 @app.patch("/tasks/{task_id}", response_model=schemas.TaskResponse)
-def update_task_status(task_id: int, new_status: str, current_user: models.User = Depends(auth.get_current_user), db: Session = Depends(database.get_db)):
-    task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.user_id == current_user.id).first()
+def update_task(
+    task_id: int,
+    payload: schemas.TaskUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    task = db.query(models.Task).filter(
+        models.Task.id == task_id, models.Task.user_id == current_user.id
+    ).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    task.status = new_status
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(task, field, value)
     db.commit()
     db.refresh(task)
     return task
+
+@app.delete("/tasks/{task_id}", status_code=204)
+def delete_task(
+    task_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    task = db.query(models.Task).filter(
+        models.Task.id == task_id, models.Task.user_id == current_user.id
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    db.delete(task)
+    db.commit()
 
 # --- DOCUMENTS ---
 
@@ -188,6 +358,44 @@ async def create_document(doc: schemas.DocumentCreate, current_user: models.User
 @app.get("/documents", response_model=List[schemas.DocumentResponse])
 def get_documents(current_user: models.User = Depends(auth.get_current_user)):
     return current_user.documents
+
+@app.patch("/documents/{doc_id}", response_model=schemas.DocumentResponse)
+def update_document(
+    doc_id: int,
+    payload: schemas.DocumentUpdate,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    doc = db.query(models.Document).filter(
+        models.Document.id == doc_id, models.Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(doc, field, value)
+    doc.version += 1
+    db.commit()
+    db.refresh(doc)
+    return doc
+
+@app.delete("/documents/{doc_id}", status_code=204)
+def delete_document(
+    doc_id: int,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db),
+):
+    doc = db.query(models.Document).filter(
+        models.Document.id == doc_id, models.Document.user_id == current_user.id
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    # Remove from vector store too
+    try:
+        knowledge_base.delete_document(str(doc_id))
+    except Exception:
+        pass
+    db.delete(doc)
+    db.commit()
 
 # --- VOICE AI ---
 

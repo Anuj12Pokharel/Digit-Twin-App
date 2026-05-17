@@ -26,6 +26,11 @@ class User(Base):
     
     current_mode = Column(String, default=DigitalTwinMode.PERSONAL.value)
     avatar_url = Column(String, nullable=True)
+    
+    slack_connected = Column(Boolean, default=False)
+    github_connected = Column(Boolean, default=False)
+    jira_connected = Column(Boolean, default=False)
+    calendar_connected = Column(Boolean, default=False)
 
     # Relationships
     jira_config = relationship("JiraConfig", back_populates="owner", uselist=False)
@@ -125,3 +130,13 @@ class LifestyleData(Base):
     content = Column(Text, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", back_populates="lifestyle_data")
+
+class OTPCode(Base):
+    """Short-lived one-time password for email-based password reset."""
+    __tablename__ = "otp_codes"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    code = Column(String, nullable=False)          # 6-digit string
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)      # None = still valid
+    created_at = Column(DateTime, default=datetime.utcnow)

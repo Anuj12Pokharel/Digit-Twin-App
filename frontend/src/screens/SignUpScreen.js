@@ -1,223 +1,351 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  KeyboardAvoidingView, Platform, ScrollView,
-  ActivityIndicator, Animated, ImageBackground
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+  Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { registerUser } from '../api/api';
 
-const BG_IMAGE = 'https://images.unsplash.com/photo-1551434678-e076c223a692?q=80&w=1200&auto=format&fit=crop';
-const CYAN = '#0cdbbc';
+const BLUE = '#2563EB';
 
 export default function SignUpScreen({ navigation, onLoginSuccess }) {
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    countryCode: '',
-    phone: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 9, useNativeDriver: true }),
+    ]).start();
   }, []);
 
   const handleSignUp = async () => {
-    if (!formData.firstName || !formData.email || !formData.password || !formData.confirmPassword) {
-      alert("Please fill in all required fields.");
+    if (!fullName.trim() || !email.trim() || !password) {
+      setError('Please fill in all fields.');
       return;
     }
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match.");
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
       return;
     }
+    if (!agreedToTerms) {
+      setError('Please agree to the Terms and Conditions to continue.');
+      return;
+    }
+    setError('');
     setLoading(true);
-    setTimeout(async () => {
-      await AsyncStorage.setItem('userToken', 'dummy-auth-token-signup');
-      setLoading(false);
+    try {
+      const data = await registerUser({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        password,
+      });
+      // Store real JWT returned after auto-login
+      await AsyncStorage.setItem('userToken', data.access_token);
       onLoginSuccess();
-    }, 1500);
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : Array.isArray(detail)
+          ? detail.map((d) => d.msg).join(', ')
+          : 'Registration failed. Please try again.';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateForm = (key, value) => setFormData(prev => ({ ...prev, [key]: value }));
-
   return (
-    <ImageBackground source={{ uri: BG_IMAGE }} style={styles.backgroundImage}>
-      <View style={styles.overlay}>
-        <SafeAreaView style={styles.container}>
-          <KeyboardAvoidingView 
-            style={{ flex: 1 }} 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <LinearGradient colors={['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={styles.gradient}>
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            <ScrollView 
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Animated.View style={{ opacity: fadeAnim }}>
-                
-                <View style={styles.header}>
-                  <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                    <Text style={styles.backButtonIcon}>❮</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.headerTitle}>Create Account</Text>
-                  <View style={{ width: 40 }} /> 
+            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+
+              {/* ── Title ── */}
+              <View style={styles.titleSection}>
+                <Text style={styles.title}>Create Your Account</Text>
+                <Text style={styles.subtitle}>
+                  Join us today and unlock endless possibilities.{'\n'}
+                  It's quick, easy, and just a step away!
+                </Text>
+              </View>
+
+              {/* ── Error Banner ── */}
+              {!!error && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>⚠️  {error}</Text>
                 </View>
+              )}
 
-                <View style={styles.titleContainer}>
-                  <Text style={styles.title}>Join the <Text style={{ color: CYAN }}>Network</Text></Text>
-                  <Text style={styles.subtitle}>Enter your details to create your secure digital profile.</Text>
-                </View>
+              {/* ── Form ── */}
+              <View style={styles.form}>
 
-                <View style={styles.formContainer}>
-                  <View style={styles.row}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>First Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="John"
-                        placeholderTextColor="#778"
-                        value={formData.firstName}
-                        onChangeText={(val) => updateForm('firstName', val)}
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, { marginLeft: 15 }]}>
-                      <Text style={styles.label}>Last Name</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="Doe"
-                        placeholderTextColor="#778"
-                        value={formData.lastName}
-                        onChangeText={(val) => updateForm('lastName', val)}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.row}>
-                    <View style={[styles.inputGroup, { flex: 0.35 }]}>
-                      <Text style={styles.label}>Code</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="+1"
-                        placeholderTextColor="#778"
-                        keyboardType="phone-pad"
-                        value={formData.countryCode}
-                        onChangeText={(val) => updateForm('countryCode', val)}
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, { flex: 0.65, marginLeft: 15 }]}>
-                      <Text style={styles.label}>Phone Number</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="555 000 0000"
-                        placeholderTextColor="#778"
-                        keyboardType="phone-pad"
-                        value={formData.phone}
-                        onChangeText={(val) => updateForm('phone', val)}
-                      />
-                    </View>
-                  </View>
-
-                  <View style={styles.inputGroupFull}>
-                    <Text style={styles.label}>Email Address</Text>
+                {/* Full Name */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Full Name</Text>
+                  <View style={styles.inputCard}>
                     <TextInput
                       style={styles.input}
-                      placeholder="john.doe@example.com"
-                      placeholderTextColor="#778"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      value={formData.email}
-                      onChangeText={(val) => updateForm('email', val)}
+                      placeholder="Enter your name"
+                      placeholderTextColor="#A0AABF"
+                      value={fullName}
+                      onChangeText={(v) => { setFullName(v); setError(''); }}
+                      autoCapitalize="words"
+                      returnKeyType="next"
                     />
                   </View>
+                </View>
 
-                  <View style={styles.row}>
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.label}>Password</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="••••••••"
-                        placeholderTextColor="#778"
-                        secureTextEntry
-                        value={formData.password}
-                        onChangeText={(val) => updateForm('password', val)}
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, { marginLeft: 15 }]}>
-                      <Text style={styles.label}>Confirm Password</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="••••••••"
-                        placeholderTextColor="#778"
-                        secureTextEntry
-                        value={formData.confirmPassword}
-                        onChangeText={(val) => updateForm('confirmPassword', val)}
-                      />
-                    </View>
+                {/* Email */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <View style={styles.inputCard}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor="#A0AABF"
+                      value={email}
+                      onChangeText={(v) => { setEmail(v); setError(''); }}
+                      autoCapitalize="none"
+                      keyboardType="email-address"
+                      returnKeyType="next"
+                    />
                   </View>
                 </View>
 
-                <View style={styles.footer}>
-                  <TouchableOpacity 
-                    style={styles.primaryButton}
-                    onPress={handleSignUp}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator color="#000" />
-                    ) : (
-                      <Text style={styles.primaryButtonText}>Sign Up →</Text>
-                    )}
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={styles.linkButton}
-                    onPress={() => navigation.navigate('Login')}
-                  >
-                    <Text style={styles.linkText}>Already have an account? <Text style={styles.linkTextBold}>Log In</Text></Text>
-                  </TouchableOpacity>
+                {/* Password */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={styles.inputCard}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#A0AABF"
+                      value={password}
+                      onChangeText={(v) => { setPassword(v); setError(''); }}
+                      secureTextEntry={!showPassword}
+                      returnKeyType="done"
+                      onSubmitEditing={handleSignUp}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      style={styles.eyeButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
+              </View>
 
-              </Animated.View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </View>
-    </ImageBackground>
+              {/* ── Sign Up Button ── */}
+              <TouchableOpacity
+                style={[styles.primaryButton, loading && styles.primaryButtonDisabled]}
+                onPress={handleSignUp}
+                disabled={loading}
+                activeOpacity={0.85}
+              >
+                {loading
+                  ? <ActivityIndicator color="#fff" />
+                  : <Text style={styles.primaryButtonText}>Sign Up</Text>
+                }
+              </TouchableOpacity>
+
+              {/* ── Terms Checkbox ── */}
+              <TouchableOpacity
+                style={styles.termsRow}
+                onPress={() => { setAgreedToTerms(!agreedToTerms); setError(''); }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}>
+                  {agreedToTerms && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.termsText}>
+                  By creating an account, you agree to our{' '}
+                  <Text style={styles.termsLink}>Terms and Conditions</Text>
+                  {' '}and{' '}
+                  <Text style={styles.termsLink}>Privacy Notice</Text>.
+                </Text>
+              </TouchableOpacity>
+
+              {/* ── Footer ── */}
+              <TouchableOpacity
+                style={styles.bottomLinkRow}
+                onPress={() => navigation.navigate('Login')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.bottomLinkText}>
+                  Already Have an Account?{' '}
+                  <Text style={styles.bottomLinkBold}>Sign In</Text>
+                </Text>
+              </TouchableOpacity>
+
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  backgroundImage: { flex: 1, width: '100%', height: '100%' },
-  overlay: { flex: 1, backgroundColor: 'rgba(5, 12, 18, 0.93)' },
-  container: { flex: 1 },
-  scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 40 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-  backButton: { width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  backButtonIcon: { color: '#fff', fontSize: 16 },
-  headerTitle: { color: '#fff', fontSize: 16, fontWeight: '600', letterSpacing: 0.5 },
-  titleContainer: { marginBottom: 35 },
-  title: { fontSize: 32, fontWeight: '800', color: '#ffffff', marginBottom: 8, letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, color: '#B0BAC5', lineHeight: 22 },
-  formContainer: { marginBottom: 10 },
-  row: { flexDirection: 'row', marginBottom: 20 },
-  inputGroup: { flex: 1 },
-  inputGroupFull: { marginBottom: 20 },
-  label: { color: '#ffffff', fontSize: 13, marginBottom: 8, fontWeight: '600', letterSpacing: 0.5, opacity: 0.9 },
-  input: { backgroundColor: 'rgba(255,255,255,0.06)', height: 56, borderRadius: 10, paddingHorizontal: 16, color: '#ffffff', fontSize: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  footer: { marginTop: 10 },
-  primaryButton: { backgroundColor: CYAN, borderRadius: 8, height: 56, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  primaryButtonText: { color: '#000000', fontSize: 17, fontWeight: '800' },
-  linkButton: { alignItems: 'center', padding: 10 },
-  linkText: { color: '#B0BAC5', fontSize: 15 },
-  linkTextBold: { color: CYAN, fontWeight: '700' },
+  gradient: { flex: 1 },
+  safeArea: { flex: 1 },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 36,
+    paddingBottom: 32,
+  },
+
+  // Title
+  titleSection: { marginBottom: 24 },
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 21,
+  },
+
+  // Error
+  errorBanner: {
+    backgroundColor: '#FEE2E2',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#EF4444',
+  },
+  errorText: {
+    fontSize: 13,
+    color: '#991B1B',
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+
+  // Form
+  form: { marginBottom: 8 },
+  fieldGroup: { marginBottom: 16 },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 8,
+  },
+  inputCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 54,
+    shadowColor: '#94A3B8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1E293B',
+  },
+  eyeButton: { paddingLeft: 10, justifyContent: 'center' },
+  eyeIcon: { fontSize: 18 },
+
+  // Primary Button
+  primaryButton: {
+    height: 54,
+    backgroundColor: BLUE,
+    borderRadius: 27,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 7,
+    marginBottom: 20,
+  },
+  primaryButtonDisabled: { opacity: 0.7 },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+
+  // Terms
+  termsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 32,
+    gap: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  checkboxChecked: { backgroundColor: BLUE, borderColor: BLUE },
+  checkmark: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 14,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 20,
+  },
+  termsLink: { color: BLUE, fontWeight: '600' },
+
+  // Footer
+  bottomLinkRow: { alignItems: 'center' },
+  bottomLinkText: { fontSize: 14, color: '#64748B' },
+  bottomLinkBold: { color: BLUE, fontWeight: '700' },
 });

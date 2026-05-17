@@ -1,402 +1,193 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  View, Text, TextInput, TouchableOpacity, StyleSheet, 
-  KeyboardAvoidingView, Platform, FlatList, Animated, Keyboard,
-  StatusBar, ActivityIndicator, ScrollView
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet,
+  ScrollView, Animated, StatusBar, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { RTCView } from 'react-native-webrtc';
-import RealtimeService from '../services/RealtimeService';
+import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/api';
 
-const CYAN = '#0cdbbc';
+const BLUE = '#2563EB';
 
-export default function HomeScreen({ navigation }) {
-  const [mode, setMode] = useState('work'); 
-  const [inputText, setInputText] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [switchingMessage, setSwitchingMessage] = useState('');
+function greeting() {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good Morning!' : h < 17 ? 'Good Afternoon!' : 'Good Evening!';
+}
 
-  // Separated chat histories for seamless context switching
-  const [messages, setMessages] = useState({
-    work: [
-      { id: 'w1', text: 'Hello! I am your Digit Twin. I am currently synched to your Work context.', sender: 'twin' }
-    ],
-    personal: [
-      { id: 'p1', text: 'Hello! I am your Digit Twin. Your private Personal space is actively isolated and ready.', sender: 'twin' }
-    ]
-  });
+const MODES = [
+  {
+    id: 'personal',
+    label: 'Personal Mode',
+    desc: 'Generate complex algorithms and clean code with ease.',
+    icon: '🤖',
+    bg: '#DCFCE7',
+  },
+  {
+    id: 'work',
+    label: 'Work Mode',
+    desc: 'Transform your imagination into stunning digital creations.',
+    icon: '💎',
+    bg: '#0F172A',
+    dark: true,
+  },
+];
 
-  const [integrations, setIntegrations] = useState({ jira: false, calendly: false });
-  const [connecting, setConnecting] = useState({ jira: false, calendly: false });
-  
-  // Realtime Streams
-  const [remoteStream, setRemoteStream] = useState(null);
+export default function HomeScreen({ navigation, onLogout }) {
+  const [user, setUser] = useState(null);
+  const [mode, setMode] = useState('personal');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
 
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const blinkAnim = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef(null);
+  // Fetch user every time this screen comes into focus
+  // (ensures profile picture updates after editing)
+  useFocusEffect(
+    useCallback(() => {
+      api.get('/me')
+        .then(r => {
+          setUser(r.data);
+          if (r.data.current_mode) setMode(r.data.current_mode);
+        })
+        .catch(() => {});
+    }, [])
+  );
 
   useEffect(() => {
-    if (isListening) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.2, duration: 800, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true })
-        ])
-      ).start();
-    } else {
-      pulseAnim.stopAnimation();
-      pulseAnim.setValue(1);
-    }
-  }, [isListening]);
-
-  const handleConnect = (service) => {
-    setConnecting(prev => ({ ...prev, [service]: true }));
-    setTimeout(() => {
-      setConnecting(prev => ({ ...prev, [service]: false }));
-      setIntegrations(prev => ({ ...prev, [service]: true }));
-      
-      setMessages(prev => ({
-        ...prev,
-        work: [...prev.work, { 
-          id: Date.now().toString(), 
-          text: `Authentication successful! I am now heavily integrated with ${service === 'jira' ? 'Jira' : 'Calendly'}. I can read your tickets and manage your calendar workflow directly.`, 
-          sender: 'twin' 
-        }]
-      }));
-    }, 1500);
-  };
-
-  const switchMode = (newMode) => {
-    if (mode === newMode) return;
-    
-    // Stop any active real-time listening on the old mode
-    if (isListening) {
-      toggleVoice(true); // force stop
-    }
-    
-    setMode(newMode);
-    
-    const msg = newMode === 'work' ? '> Connecting Work Integration...' : '> Syncing Personal Brain...';
-    setSwitchingMessage(msg);
-    
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(blinkAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(blinkAnim, { toValue: 0.2, duration: 400, useNativeDriver: true })
-      ]),
-      { iterations: 3 }
-    ).start(({ finished }) => {
-      if (finished) {
-        setSwitchingMessage('');
-        setTimeout(() => {
-          setMessages(prev => ({
-            ...prev,
-            [newMode]: [...prev[newMode], { 
-              id: Date.now().toString(), 
-              text: newMode === 'work' ? 'Work context successfully loaded. Standing by.' : 'Personal context initialized based on your holistic guide.', 
-              sender: 'twin' 
-            }]
-          }));
-        }, 500);
-      }
-    });
-  };
-
-  const sendMessage = async (text) => {
-    if (!text.trim()) return;
-    
-    const userMsg = { id: Date.now().toString(), text, sender: 'user' };
-    setMessages(prev => ({ ...prev, [mode]: [...prev[mode], userMsg] }));
-    setInputText('');
-    Keyboard.dismiss();
-
-    try {
-      const res = await api.post('/chat-completions', { query: text });
-      setMessages(prev => ({ 
-        ...prev, 
-        [mode]: [...prev[mode], { id: (Date.now() + 1).toString(), text: res.data.response, sender: 'twin' }] 
-      }));
-    } catch (err) {
-      console.log('Chat API Error:', err);
-      setMessages(prev => ({ 
-        ...prev, 
-        [mode]: [...prev[mode], { id: (Date.now() + 1).toString(), text: "Network Error: Could not reach the API.", sender: 'system' }] 
-      }));
-    }
-  };
-
-  const toggleVoice = async (forceStop = false) => {
-    if (isListening || forceStop) {
-      // STOP SESSION
-      RealtimeService.stopSession();
-      setIsListening(false);
-      setRemoteStream(null);
-      
-      setMessages(prev => {
-        const transMsg = prev[mode].find(m => m.id === 'transcription');
-        const filtered = prev[mode].filter(m => m.id !== 'transcription');
-        const finalText = transMsg && transMsg.text && transMsg.text !== '...' ? transMsg.text : 'Voice connection closed.';
-        
-        return {
-          ...prev,
-          [mode]: [...filtered, { id: Date.now().toString(), text: finalText, sender: 'user' }]
-        };
-      });
-      
-    } else {
-      // START SESSION
-      setIsListening(true);
-      setMessages(prev => ({
-        ...prev,
-        [mode]: [...prev[mode], { 
-          id: 'transcription', 
-          text: '...', 
-          sender: 'user', 
-          isTranscription: true 
-        }]
-      }));
-
-      let currentTranscript = "";
-
-      const attemptConnect = async () => {
-        const success = await RealtimeService.startSession(
-          (delta) => {
-             currentTranscript += delta;
-             setMessages(current => ({
-               ...current,
-               [mode]: current[mode].map(m => 
-                 m.id === 'transcription' ? { ...m, text: currentTranscript } : m
-               )
-             }));
-          },
-          (stream) => {
-             setRemoteStream(stream);
-          }
-        );
-
-        if (!success) {
-           alert("Unable to establish WebRTC connection with the backend. Check your network or server status.");
-           setIsListening(false);
-           setRemoteStream(null);
-           setMessages(current => ({
-             ...current,
-             [mode]: current[mode].filter(m => m.id !== 'transcription')
-           }));
-        }
-      };
-
-      attemptConnect();
-    }
-  };
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('userToken');
-    alert("Logged out. Please reload (R) to view Login screen.");
+    if (onLogout) onLogout();
   };
 
-  const renderMessage = ({ item }) => {
-    const isUser = item.sender === 'user';
-    return (
-      <View style={[styles.messageWrapper, isUser ? styles.messageUserWrapper : styles.messageTwinWrapper]}>
-        {!isUser && (
-          <View style={styles.avatarMini}>
-            <Text style={{ fontSize: 13 }}>♾️</Text>
-          </View>
-        )}
-        <View style={[
-          styles.messageBubble, 
-          isUser ? styles.bubbleUser : styles.bubbleTwin,
-          item.isTranscription && styles.bubbleTranscription
-        ]}>
-          <Text style={[styles.messageText, isUser && styles.messageTextUser, item.isTranscription && styles.textTranscription]}>
-            {item.text}
-          </Text>
-        </View>
-      </View>
-    );
-  };
+  const initial = user?.full_name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Invisible WebRTC Audio View */}
-      {remoteStream && (
-        <RTCView streamURL={remoteStream.toURL()} style={{ width: 0, height: 0, opacity: 0 }} />
-      )}
+    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" />
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
 
-      {/* Header & Mode Switcher */}
-      <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <Text style={styles.headerTitle}>Digit <Text style={{color: CYAN}}>.</Text></Text>
-          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-            <Text style={styles.logoutText}>Log Out</Text>
-          </TouchableOpacity>
-        </View>
+            {/* ── Header ── */}
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity
+                  style={styles.avatar}
+                  onPress={() => navigation.navigate('Settings')}
+                  activeOpacity={0.8}
+                >
+                  {user?.avatar_url ? (
+                    <Image
+                      source={{ uri: user.avatar_url }}
+                      style={{ width: 46, height: 46, borderRadius: 23 }}
+                    />
+                  ) : (
+                    <Text style={styles.avatarText}>{initial}</Text>
+                  )}
+                </TouchableOpacity>
+                <View>
+                  <Text style={styles.greetText}>{greeting()}</Text>
+                  <Text style={styles.nameText}>{user?.full_name || user?.email || 'Welcome'}</Text>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.bellWrap} activeOpacity={0.7}>
+                <Text style={styles.bellIcon}>🔔</Text>
+              </TouchableOpacity>
+            </View>
 
-        <View style={styles.segmentedControl}>
-          <TouchableOpacity 
-            style={[styles.segment, mode === 'personal' && styles.segmentActive]}
-            onPress={() => switchMode('personal')}
-            disabled={!!switchingMessage}
-          >
-            <Text style={[styles.segmentText, mode === 'personal' && styles.segmentTextActive]}>Personal</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.segment, mode === 'work' && styles.segmentActive]}
-            onPress={() => switchMode('work')}
-            disabled={!!switchingMessage}
-          >
-            <Text style={[styles.segmentText, mode === 'work' && styles.segmentTextActive]}>Work</Text>
-          </TouchableOpacity>
-        </View>
+            {/* ── Mode section ── */}
+            <View style={styles.sectionRow}>
+              <Text style={styles.sectionTitle}>Choose Your Mode</Text>
+            </View>
 
-        {/* Blinking Switch Status Area */}
-        <View style={styles.statusBarContainer}>
-          {!!switchingMessage && (
-            <Animated.Text style={[styles.statusTextBlinking, { opacity: blinkAnim }]}>
-              {switchingMessage}
-            </Animated.Text>
-          )}
-        </View>
-      </View>
+            <View style={styles.modeRow}>
+              {MODES.map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[styles.modeCard, mode === m.id && styles.modeCardActive]}
+                  onPress={() => {
+                    setMode(m.id);
+                    api.patch('/users/me', { current_mode: m.id }).catch(() => {});
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.modeIconWrap, { backgroundColor: m.bg }]}>
+                    <Text style={styles.modeIcon}>{m.icon}</Text>
+                  </View>
+                  <Text style={styles.modeLabel}>{m.label}</Text>
+                  <Text style={styles.modeDesc}>{m.desc}</Text>
+                  {mode === m.id && <View style={styles.activeDot} />}
+                </TouchableOpacity>
+              ))}
+            </View>
 
-      {/* Static Integrations Strip (Only visible in Work) */}
-      {mode === 'work' && (
-        <View style={styles.staticIntegrationsWrap}>
-          <Text style={styles.intTitle}>Available Plugins</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.intScroll}>
-            {/* Jira Integration */}
-            <TouchableOpacity 
-              style={[styles.intCard, integrations.jira && styles.intCardConnected]} 
-              onPress={() => !integrations.jira && handleConnect('jira')}
-              disabled={integrations.jira || connecting.jira}
-              activeOpacity={0.7}
-            >
-              {connecting.jira ? <ActivityIndicator color={CYAN}/> : (
-                <>
-                  <Text style={styles.intIcon}>🔷</Text>
-                  <Text style={[styles.intText, integrations.jira && {color:'#000'}]}>{integrations.jira ? 'Jira Active' : 'Connect Jira'}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            
-            {/* Calendly Integration */}
-            <TouchableOpacity 
-              style={[styles.intCard, integrations.calendly && styles.intCardConnected]} 
-              onPress={() => !integrations.calendly && handleConnect('calendly')}
-              disabled={integrations.calendly || connecting.calendly}
-              activeOpacity={0.7}
-            >
-              {connecting.calendly ? <ActivityIndicator color={CYAN}/> : (
-                <>
-                  <Text style={styles.intIcon}>📅</Text>
-                  <Text style={[styles.intText, integrations.calendly && {color:'#000'}]}>{integrations.calendly ? 'Calendly Active' : 'Connect Calendly'}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </ScrollView>
-        </View>
-      )}
 
-      {/* Chat Interface */}
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <FlatList
-          key={mode} 
-          ref={flatListRef}
-          data={messages[mode]}
-          keyExtractor={item => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.chatScroll}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
 
-        {/* Input Area + Voice Model Toggle */}
-        <View style={styles.inputArea}>
-          
-          <Animated.View style={[styles.voiceButtonContainer, { transform: [{ scale: pulseAnim }] }]}>
-            <TouchableOpacity 
-              style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-              onPress={() => toggleVoice(false)}
-            >
-               <Animated.Text style={[styles.voiceIcon, isListening && { color: '#000' }]}>
-                 {isListening ? '🛑' : '🎙️'}
-               </Animated.Text>
-            </TouchableOpacity>
           </Animated.View>
+        </ScrollView>
 
-          <View style={styles.textInputWrapper}>
-            <TextInput
-              style={styles.textInput}
-              placeholder={`Send message to ${mode} twin...`}
-              placeholderTextColor="#666"
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={() => sendMessage(inputText)}
-            />
-            <TouchableOpacity 
-              style={styles.sendButton}
-              onPress={() => sendMessage(inputText)}
-            >
-              <Text style={styles.sendIcon}>➤</Text>
-            </TouchableOpacity>
-          </View>
+        {/* ── Start New Chat ── */}
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={() => navigation.navigate('Chat', { mode, user })}
+            activeOpacity={0.88}
+          >
+            <Text style={styles.startBtnText}>Start New Chat  →</Text>
+          </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
-
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050505' },
-  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 5, backgroundColor: 'rgba(5, 12, 18, 1)' },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff', letterSpacing: -0.5 },
-  logoutBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' },
-  logoutText: { color: '#A0A0A5', fontSize: 12, fontWeight: '600' },
-  segmentedControl: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 4 },
-  segment: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10 },
-  segmentActive: { backgroundColor: 'rgba(12, 219, 188, 0.15)' },
-  segmentText: { color: '#A0A0A5', fontWeight: '600', fontSize: 14 },
-  segmentTextActive: { color: CYAN, fontWeight: '700' },
-  statusBarContainer: { height: 20, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
-  statusTextBlinking: { color: CYAN, fontSize: 12, fontWeight: '700', fontStyle: 'italic', letterSpacing: 1 },
-  
-  staticIntegrationsWrap: { paddingLeft: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
-  intTitle: { color: '#A0A0A5', fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12, marginLeft: 2 },
-  intScroll: { paddingRight: 20 },
-  intCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#121214', paddingHorizontal: 18, paddingVertical: 14, borderRadius: 12, marginRight: 15, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', minWidth: 160, justifyContent: 'center' },
-  intCardConnected: { backgroundColor: CYAN, borderColor: CYAN },
-  intIcon: { fontSize: 18, marginRight: 8 },
-  intText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
-  
-  chatScroll: { padding: 20, flexGrow: 1, justifyContent: 'flex-end' },
-  messageWrapper: { flexDirection: 'row', marginBottom: 15, alignItems: 'flex-end' },
-  messageUserWrapper: { justifyContent: 'flex-end' },
-  messageTwinWrapper: { justifyContent: 'flex-start' },
-  avatarMini: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(12, 219, 188, 0.1)', justifyContent: 'center', alignItems: 'center', marginRight: 8, borderWidth: 1, borderColor: 'rgba(12, 219, 188, 0.3)' },
-  messageBubble: { maxWidth: '80%', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
-  bubbleTwin: { backgroundColor: '#121214', borderTopLeftRadius: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  bubbleUser: { backgroundColor: 'rgba(12, 219, 188, 0.15)', borderTopRightRadius: 4 },
-  bubbleTranscription: { backgroundColor: 'rgba(255,255,255,0.03)', borderStyle: 'dashed', borderWidth: 1, borderColor: CYAN },
-  messageText: { fontSize: 15, color: '#E0E0E0', lineHeight: 22 },
-  messageTextUser: { color: '#ffffff' },
-  textTranscription: { fontStyle: 'italic', color: CYAN, fontWeight: '600' },
-  inputArea: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: Platform.OS === 'ios' ? 30 : 20, backgroundColor: 'rgba(5, 12, 18, 0.95)', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
-  voiceButtonContainer: { alignItems: 'center', marginBottom: 15, marginTop: -30 },
-  voiceButton: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#121214', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 10, borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)' },
-  voiceButtonActive: { borderColor: CYAN, backgroundColor: CYAN, shadowColor: CYAN },
-  voiceIcon: { fontSize: 24 },
-  textInputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 25, paddingHorizontal: 15 },
-  textInput: { flex: 1, height: 50, color: '#fff', fontSize: 15 },
-  sendButton: { width: 36, height: 36, borderRadius: 18, backgroundColor: CYAN, justifyContent: 'center', alignItems: 'center', marginLeft: 10 },
-  sendIcon: { color: '#000', fontSize: 16, fontWeight: '900', marginTop: Platform.OS === 'ios' ? 2 : 0, marginLeft: 2 }
+  gradient: { flex: 1 },
+  safe: { flex: 1 },
+  scroll: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20 },
+
+  // Header
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, paddingTop: 8 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)' },
+  avatarText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  greetText: { fontSize: 12, color: '#64748B', fontWeight: '500', marginBottom: 2 },
+  nameText: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
+  bellWrap: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
+  bellIcon: { fontSize: 18 },
+
+  // Section
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  seeAll: { fontSize: 14, color: BLUE, fontWeight: '600' },
+
+  // Mode cards
+  modeRow: { flexDirection: 'row', gap: 14, marginBottom: 28 },
+  modeCard: {
+    flex: 1, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16,
+    shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 10, elevation: 3,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  modeCardActive: { borderColor: BLUE },
+  modeIconWrap: { width: 48, height: 48, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  modeIcon: { fontSize: 24 },
+  modeLabel: { fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
+  modeDesc: { fontSize: 12, color: '#64748B', lineHeight: 17 },
+  activeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: BLUE, marginTop: 10 },
+
+
+  // Bottom
+  bottomBar: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10 },
+  startBtn: {
+    height: 56, backgroundColor: BLUE, borderRadius: 28,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: BLUE, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 12, elevation: 8,
+  },
+  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 0.2 },
 });
