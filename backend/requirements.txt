@@ -26,3 +26,4 @@ chromadb==0.5.20
 # Utilities
 python-dotenv==1.0.1
 pydantic[email]==2.10.2
+duckduckgo-search==6.2.13

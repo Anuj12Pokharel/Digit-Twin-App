@@ -16,10 +16,10 @@ if config.config_file_name is not None:
 
 import os
 import sys
-# Insert the project root (one level above backend)
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from backend.database import Base
-from backend import models
+# /app is the backend directory in Docker, so direct imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from database import Base
+import models
 
 target_metadata = Base.metadata
 
