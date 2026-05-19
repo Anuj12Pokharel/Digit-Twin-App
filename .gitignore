@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables - NEVER commit these
+.env
+*.env
+!.env.example
+
+# Database files
+*.db
+*.sqlite3
+
+# Alembic compiled cache
+backend/alembic/__pycache__/
+
+# Node / frontend
+frontend/node_modules/
+frontend/.expo/
+
+# OS
+.DS_Store
+Thumbs.db
