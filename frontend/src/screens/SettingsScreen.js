@@ -2,16 +2,16 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
+import { useTheme } from '../context/ThemeContext';
 import api from '../api/api';
 
 const BLUE = '#2563EB';
 
 export default function SettingsScreen({ navigation, onLogout }) {
   const [user, setUser] = useState(null);
-  const [darkMode, setDarkMode] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const { isDarkMode, toggleTheme, colors: theme } = useTheme();
 
   useFocusEffect(
     useCallback(() => {
@@ -34,18 +34,6 @@ export default function SettingsScreen({ navigation, onLogout }) {
     { icon: '❓', label: 'Help Center', route: 'HelpCenter' },
     { icon: '📄', label: 'Privacy & Policy', route: 'PrivacyPolicy' },
   ];
-
-  const theme = {
-    gradient: darkMode ? ['#0F172A', '#1E293B', '#0F172A'] : ['#F8FBFF', '#EBF4FF', '#D6EAFF'],
-    text: darkMode ? '#F8FAFC' : '#0F172A',
-    textSecondary: darkMode ? '#94A3B8' : '#64748B',
-    card: darkMode ? '#1E293B' : '#FFFFFF',
-    cardText: darkMode ? '#F8FAFC' : '#1E293B',
-    backBtnBg: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)',
-    modalOverlay: darkMode ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.4)',
-    borderColor: darkMode ? '#334155' : '#E2E8F0',
-    signOutBg: darkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2',
-  };
 
   return (
     <LinearGradient colors={theme.gradient} style={styles.gradient}>
@@ -103,8 +91,8 @@ export default function SettingsScreen({ navigation, onLogout }) {
                 <Text style={[styles.menuLabel, { color: theme.cardText }]}>Dark Mode</Text>
               </View>
               <Switch
-                value={darkMode}
-                onValueChange={setDarkMode}
+                value={isDarkMode}
+                onValueChange={toggleTheme}
                 trackColor={{ false: '#E2E8F0', true: BLUE }}
                 thumbColor="#fff"
               />
@@ -112,7 +100,7 @@ export default function SettingsScreen({ navigation, onLogout }) {
           </View>
 
           {/* Sign Out */}
-          <TouchableOpacity style={[styles.signOutBtn, { backgroundColor: theme.signOutBg }]} onPress={() => setShowLogoutModal(true)}>
+          <TouchableOpacity style={[styles.signOutBtn, { backgroundColor: theme.dangerBg }]} onPress={() => setShowLogoutModal(true)}>
             <Text style={styles.signOutText}>Sign Out</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -135,7 +123,7 @@ export default function SettingsScreen({ navigation, onLogout }) {
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowLogoutModal(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalLogoutBtn, { borderColor: theme.borderColor }]} onPress={confirmLogout}>
+              <TouchableOpacity style={[styles.modalLogoutBtn, { borderColor: theme.border }]} onPress={confirmLogout}>
                 <Text style={[styles.modalLogoutText, { color: theme.text }]}>Log Out</Text>
               </TouchableOpacity>
             </View>

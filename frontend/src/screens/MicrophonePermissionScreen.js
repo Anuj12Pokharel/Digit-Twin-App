@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Audio } from 'expo-av';
 
 const BLUE = '#2563EB';
 
@@ -22,7 +23,13 @@ export default function MicrophonePermissionScreen({ onPermissionDone }) {
     pulse(pulseInner, 1.08, 1100).start();
   }, []);
 
-  const done = async () => {
+  const handleAllow = async () => {
+    const { status } = await Audio.requestPermissionsAsync();
+    await AsyncStorage.setItem('micPermissionAsked', 'true');
+    onPermissionDone();
+  };
+
+  const handleSkip = async () => {
     await AsyncStorage.setItem('micPermissionAsked', 'true');
     onPermissionDone();
   };
@@ -45,11 +52,11 @@ export default function MicrophonePermissionScreen({ onPermissionDone }) {
             Allow microphone to use voice assistant{'\n'}features and dictate tasks.
           </Text>
 
-          <TouchableOpacity style={styles.allowBtn} onPress={done} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.allowBtn} onPress={handleAllow} activeOpacity={0.85}>
             <Text style={styles.allowText}>Allow Microphone</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.skipBtn} onPress={done} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
             <Text style={styles.skipText}>Skip</Text>
           </TouchableOpacity>
         </View>

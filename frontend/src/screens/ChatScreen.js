@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   FlatList, StyleSheet, KeyboardAvoidingView,
-  Platform, Animated, ActivityIndicator,
+  Platform, Animated, ActivityIndicator, Image
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../context/ThemeContext';
+import { Audio } from 'expo-av';
 import api from '../api/api';
 
 const BLUE = '#2563EB';
@@ -124,6 +126,7 @@ const QUICK_ACTIONS = [
 // ── Main ChatScreen ───────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
   const { mode = 'personal', user } = route.params || {};
+  const { isDarkMode, colors: theme } = useTheme();
 
   const [messages, setMessages] = useState([
     { id: '0', role: 'assistant', type: 'text', content: `Hi! I'm your ${mode} AI twin. Ask me anything!` },
@@ -134,6 +137,11 @@ export default function ChatScreen({ route, navigation }) {
   const [isVoiceNote, setIsVoiceNote] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
+
+  // Mode Context States
+  const [showModePopup, setShowModePopup] = useState(false);
+  const [suggestedMode, setSuggestedMode] = useState(null);
+  const [pendingText, setPendingText] = useState('');
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -147,10 +155,29 @@ export default function ChatScreen({ route, navigation }) {
     return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   })();
 
+  const handleModeChange = async (newMode) => {
+    try {
+      await api.patch('/users/me', { current_mode: newMode });
+    } catch {}
+    // Update local messages to reflect switch gracefully
+    setMessages(prev => [...prev, {
+      id: Date.now().toString() + 'sys',
+      role: 'assistant',
+      type: 'text',
+      content: `🔄 Switched to ${newMode === 'work' ? 'Work' : 'Personal'} Mode.`
+    }]);
+    setShowModePopup(false);
+  };
+
   // ── Send text message ──────────────────────────────────────────────────────
-  const sendText = useCallback(async (text) => {
+  const sendText = useCallback((text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    
+    processSendText(trimmed);
+  }, [mode]);
+
+  const processSendText = async (trimmed) => {
     setInput('');
     setShowActions(false);
 
@@ -161,30 +188,56 @@ export default function ChatScreen({ route, navigation }) {
 
     try {
       const res = await api.post('/chat-completions', { query: trimmed });
-      const aiMsg = { id: Date.now().toString() + 'ai', role: 'assistant', type: 'text', content: res.data.response };
-      setMessages(prev => [...prev, aiMsg]);
+      let aiText = res.data.response;
+      
+      // Check for LLM intent detection
+      const switchMatch = aiText.match(/\[SUGGEST_MODE_SWITCH:\s*(work|personal)\s*\]/i);
+      if (switchMatch) {
+         const newMode = switchMatch[1].toLowerCase();
+         aiText = aiText.replace(/\[SUGGEST_MODE_SWITCH:\s*(work|personal)\s*\]/i, '').trim();
+         
+         if (newMode !== mode) {
+             setSuggestedMode(newMode);
+             setShowModePopup(true);
+         }
+      }
+
+      if (aiText) {
+          const aiMsg = { id: Date.now().toString() + 'ai', role: 'assistant', type: 'text', content: aiText };
+          setMessages(prev => [...prev, aiMsg]);
+      }
     } catch {
       setMessages(prev => [...prev, { id: Date.now().toString() + 'err', role: 'assistant', type: 'text', content: '⚠️ Could not reach the server. Please try again.' }]);
     } finally {
       setLoading(false);
       scrollToEnd();
     }
-  }, []);
+  };
 
   // ── Toggle full-screen dictation ──────────────────────────────────────────
-  const toggleDictation = () => {
+  const toggleDictation = async () => {
     if (isDictating) {
       // Send the transcribed text
       sendText("What are the advantages of online education compared to traditional classroom learning?");
       setIsDictating(false);
     } else {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access microphone was denied');
+        return;
+      }
       setIsDictating(true);
       setShowActions(false);
     }
   };
 
   // ── Toggle inline voice note ───────────────────────────────────────────────
-  const startVoiceNote = () => {
+  const startVoiceNote = async () => {
+    const { status } = await Audio.requestPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Permission to access microphone was denied');
+      return;
+    }
     setIsVoiceNote(true);
     setVoiceTime(0);
     setShowActions(false);
@@ -233,8 +286,8 @@ export default function ChatScreen({ route, navigation }) {
         {item.type === 'voice' ? (
           <VoiceBubble duration={item.duration} isUser={isUser} />
         ) : (
-          <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAI]}>
-            <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>{item.content}</Text>
+          <View style={[styles.bubble, isUser ? styles.bubbleUser : [styles.bubbleAI, { backgroundColor: theme.card }]]}>
+            <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : { color: theme.text }]}>{item.content}</Text>
           </View>
         )}
         {!isUser && <Reactions />}
@@ -243,17 +296,26 @@ export default function ChatScreen({ route, navigation }) {
   };
 
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
 
         {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.headerBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.headerBtnText}>←</Text>
+          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.headerBtnText, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>{mode === 'work' ? '💼 Work Twin' : '🌿 Personal Twin'}</Text>
-          <TouchableOpacity style={styles.headerBtn}>
-            <Text style={styles.headerBtnText}>⋮</Text>
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {user?.avatar_url && mode !== 'work' ? (
+              <Image source={{ uri: user.avatar_url }} style={{ width: 32, height: 32, borderRadius: 16 }} />
+            ) : null}
+            <Text style={[styles.headerTitle, { color: theme.text }]}>
+              {mode === 'work' ? '💼 Work Twin' : '🌿 Personal Twin'}
+            </Text>
+          </View>
+
+          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)' }]}>
+            <Text style={[styles.headerBtnText, { color: theme.text }]}>⋮</Text>
           </TouchableOpacity>
         </View>
 
@@ -269,15 +331,15 @@ export default function ChatScreen({ route, navigation }) {
                   What are the advantages of online education compared to traditional classroom learning.....
                 </Text>
               </View>
-              <View style={styles.voiceControls}>
-                <TouchableOpacity style={styles.voiceCtrlBtn} onPress={() => { setIsDictating(false); inputRef.current?.focus(); }}>
+              <View style={[styles.voiceControls, { backgroundColor: isDarkMode ? 'rgba(30,41,59,0.8)' : 'rgba(255,255,255,0.8)' }]}>
+                <TouchableOpacity style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? '#0F172A' : '#fff' }]} onPress={() => { setIsDictating(false); inputRef.current?.focus(); }}>
                   <Text style={styles.voiceCtrlIcon}>⌨️</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.voiceCtrlBtn, styles.voiceMicBtn]} onPress={toggleDictation}>
                   <Text style={[styles.voiceCtrlIcon, {color: '#fff'}]}>🎤</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.voiceCtrlBtn} onPress={() => setIsDictating(false)}>
-                  <Text style={styles.voiceCtrlIcon}>✕</Text>
+                <TouchableOpacity style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? '#0F172A' : '#fff' }]} onPress={() => setIsDictating(false)}>
+                  <Text style={[styles.voiceCtrlIcon, { color: theme.text }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -315,12 +377,12 @@ export default function ChatScreen({ route, navigation }) {
               )}
 
               {/* ── Input bar (Mockup 4 & 5) ── */}
-              <View style={styles.inputBar}>
+              <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
                 <TouchableOpacity
                   style={styles.inputSideBtn}
                   onPress={() => setShowActions(!showActions)}
                 >
-                  <Text style={styles.inputSideBtnText}>+</Text>
+                  <Text style={[styles.inputSideBtnText, { color: theme.text }]}>+</Text>
                 </TouchableOpacity>
 
                 {isVoiceNote ? (
@@ -334,12 +396,12 @@ export default function ChatScreen({ route, navigation }) {
                     <Text style={styles.inlineVoiceTime}>{formatTime(voiceTime)}</Text>
                   </View>
                 ) : (
-                  <View style={styles.inputWrap}>
+                  <View style={[styles.inputWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
                     <TextInput
                       ref={inputRef}
-                      style={styles.textInput}
+                      style={[styles.textInput, { color: theme.text }]}
                       placeholder="Type a message.."
-                      placeholderTextColor="#A0AABF"
+                      placeholderTextColor={theme.textSecondary}
                       value={input}
                       onChangeText={setInput}
                       returnKeyType="send"
@@ -351,21 +413,46 @@ export default function ChatScreen({ route, navigation }) {
                       onPress={toggleDictation}
                       onLongPress={startVoiceNote}
                     >
-                      <Text style={styles.inputMicIcon}>🎤</Text>
+                      <Text style={[styles.inputMicIcon, { color: theme.textSecondary }]}>🎤</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 <TouchableOpacity
-                  style={styles.sendBtn}
+                  style={[styles.sendBtn, { backgroundColor: theme.inputBg }]}
                   onPress={() => isVoiceNote ? sendVoiceNote() : sendText(input)}
                   disabled={!isVoiceNote && (!input.trim() || loading)}
                 >
-                  <Text style={styles.sendBtnIcon}>➤</Text>
+                  <Text style={[styles.sendBtnIcon, { color: theme.text }]}>➤</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
+
+          {/* ── Contextual Mode Switch Popup ── */}
+          {showModePopup && (
+            <View style={styles.popupOverlay}>
+              <View style={styles.popupCard}>
+                <View style={styles.popupIconWrap}>
+                  <Text style={styles.popupIcon}>{suggestedMode === 'work' ? '🏢' : '🏠'}</Text>
+                </View>
+                <Text style={styles.popupTitle}>Switch Mode?</Text>
+                <Text style={styles.popupDesc}>
+                  I noticed you're talking about {suggestedMode === 'work' ? 'work stuff' : 'personal topics'}. 
+                  Should I switch to {suggestedMode === 'work' ? 'Work' : 'Personal'} Mode?
+                </Text>
+                <View style={styles.popupBtnRow}>
+                  <TouchableOpacity style={styles.popupBtnNo} onPress={() => setShowModePopup(false)}>
+                    <Text style={styles.popupBtnNoText}>Stay in {mode}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.popupBtnYes} onPress={() => handleModeChange(suggestedMode)}>
+                    <Text style={styles.popupBtnYesText}>Yes, Switch</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
         </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
@@ -455,4 +542,33 @@ const styles = StyleSheet.create({
   voiceCtrlBtn: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   voiceMicBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: BLUE },
   voiceCtrlIcon: { fontSize: 22 },
+
+  // Popup
+  popupOverlay: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 90 : 70, left: 16, right: 16,
+    zIndex: 100,
+  },
+  popupCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  popupIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
+  popupIcon: { fontSize: 28 },
+  popupTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
+  popupDesc: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  popupBtnRow: { flexDirection: 'row', gap: 12, width: '100%' },
+  popupBtnNo: { flex: 1, height: 48, borderRadius: 24, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
+  popupBtnNoText: { fontSize: 15, fontWeight: '600', color: '#475569' },
+  popupBtnYes: { flex: 1, height: 48, borderRadius: 24, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
+  popupBtnYesText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
 });

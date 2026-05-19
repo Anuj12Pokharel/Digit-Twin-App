@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeProvider } from './src/context/ThemeContext';
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
 import SplashScreen from './src/screens/SplashScreen';
@@ -95,8 +96,9 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator
+    <ThemeProvider>
+      <NavigationContainer>
+        <Stack.Navigator
         screenOptions={{
           headerShown: false,
           cardStyleInterpolator: fadeInterpolator,
@@ -158,5 +160,6 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
+    </ThemeProvider>
   );
 }

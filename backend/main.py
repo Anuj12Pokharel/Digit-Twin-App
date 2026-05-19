@@ -400,6 +400,7 @@ def delete_document(
 # --- VOICE AI ---
 
 from pydantic import BaseModel
+from duckduckgo_search import DDGS
 
 class ChatRequest(BaseModel):
     query: str
@@ -412,24 +413,32 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
 
     if current_user.current_mode == "personal":
         instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
-        instr += "CRITICAL: Your entire personality, history, and knowledge are derived EXCLUSIVELY from the provided training guide. "
-        instr += "You are an expert mapped exactly to the holistic lifestyle outlined below.\n"
+        instr += "You are an intelligent assistant that answers questions using up-to-date web data. "
         
+        context_text = ""
         try:
-            with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
-                training_content = f.read()
-            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
-        except FileNotFoundError:
-            pass
+            # Perform a web search using duckduckgo
+            with DDGS() as ddgs:
+                results = list(ddgs.text(req.query, max_results=3))
+                if results:
+                    context_text = "\n\n--- WEB SEARCH RESULTS ---\n"
+                    for r in results:
+                        context_text += f"Title: {r.get('title')}\nSnippet: {r.get('body')}\nLink: {r.get('href')}\n\n"
+                    context_text += "--------------------------------\n\n"
+        except Exception as e:
+            print("Web search failed:", e)
 
-        instr += "Always speak in the FIRST PERSON ('I am...', 'My philosophy is...') to maintain the illusion of being the user's replica."
+        instr += context_text
+        instr += "Always try to provide the best and most accurate possible answer utilizing the web search results provided above. Do not mention that you performed a web search unless asked, just provide the answer directly. "
+        instr += "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to WORK MODE, or is strongly related to work tasks (Jira, meetings, project deadlines), prepend your exact response with '[SUGGEST_MODE_SWITCH: work]'. "
     else:
         instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
         if current_user.jira_config:
             instr += f"Jira is connected to {current_user.jira_config.domain}. "
         if current_user.google_calendar_config:
             instr += "Google Calendar is connected. "
-        instr += "Prioritize connected services for work and scheduling tasks."
+        instr += "Prioritize connected services for work and scheduling tasks. "
+        instr += "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to PERSONAL MODE, or is strongly related to personal life (hobbies, movies, gym, cooking, leisure), prepend your exact response with '[SUGGEST_MODE_SWITCH: personal]'. "
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
