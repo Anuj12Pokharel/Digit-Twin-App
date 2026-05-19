@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, Boolean, Enum, ForeignKey, DateT
 from sqlalchemy.orm import relationship
 import enum
 from datetime import datetime
-from .database import Base
+from database import Base
 
 class DigitalTwinMode(str, enum.Enum):
     PERSONAL = "personal"

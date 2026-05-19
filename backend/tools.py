@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
-from . import models, schemas
-from .services.jira_service import JiraService
-from .services.google_calendar_service import GoogleCalendarService
-from .services.knowledge_service import knowledge_base
+import models, schemas
+from services.jira_service import JiraService
+from services.google_calendar_service import GoogleCalendarService
+from services.knowledge_service import knowledge_base
 from datetime import datetime, timedelta
 import asyncio
 

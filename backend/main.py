@@ -12,11 +12,11 @@ from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 from typing import List
-from . import models, schemas, database, auth, tools
-from .database import engine
-from .services.jira_service import JiraService
-from .services.google_calendar_service import GoogleCalendarService
-from .services.knowledge_service import knowledge_base
+import models, schemas, database, auth, tools
+from database import engine
+from services.jira_service import JiraService
+from services.google_calendar_service import GoogleCalendarService
+from services.knowledge_service import knowledge_base
 from datetime import datetime, timedelta
 
 models.Base.metadata.create_all(bind=engine)

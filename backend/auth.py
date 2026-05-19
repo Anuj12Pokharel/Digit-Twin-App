@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from . import models, schemas, database
+import models, schemas, database
 import os
 
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-to-a-long-random-string-in-production")
