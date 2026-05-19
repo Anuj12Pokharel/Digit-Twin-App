@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   FlatList, StyleSheet, KeyboardAvoidingView,
-  Platform, Animated, ActivityIndicator, Image
+  Platform, Animated, ActivityIndicator, Image, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,11 +10,15 @@ import { useTheme } from '../context/ThemeContext';
 import { Audio } from 'expo-av';
 import api from '../api/api';
 
+const { width, height } = Dimensions.get('window');
+const PURPLE = '#184E68';
+const CYAN = '#00F0FF';
+const INDIGO = '#0A2D3F';
 const BLUE = '#2563EB';
 const BAR_COUNT = 28;
 
 // ── Animated waveform bars ────────────────────────────────────────────────────
-function WaveformBars({ active, color = BLUE, height = 56, barCount = BAR_COUNT }) {
+function WaveformBars({ active, color = CYAN, height = 56, barCount = BAR_COUNT }) {
   const anims = useRef(
     Array.from({ length: barCount }, () => new Animated.Value(0.15))
   ).current;
@@ -65,37 +69,59 @@ function WaveformBars({ active, color = BLUE, height = 56, barCount = BAR_COUNT 
 }
 
 // ── Voice message bubble waveform (static) ────────────────────────────────────
-function VoiceBubble({ duration, isUser }) {
+function VoiceBubble({ duration, isUser, isDarkMode }) {
   const bars = Array.from({ length: 22 }, (_, i) => 4 + Math.abs(Math.sin(i * 0.7)) * 18);
+  const bubbleBg = isUser
+    ? [PURPLE, INDIGO]
+    : isDarkMode
+    ? ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.05)']
+    : ['#FFFFFF', '#FFFFFF'];
+
   return (
-    <View style={[styles.voiceBubble, isUser ? styles.voiceBubbleUser : styles.voiceBubbleAI]}>
+    <LinearGradient
+      colors={bubbleBg}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[
+        styles.voiceBubble,
+        isUser ? styles.voiceBubbleUser : styles.voiceBubbleAI,
+        !isUser && isDarkMode && { borderColor: 'rgba(255, 255, 255, 0.08)', borderWidth: 1.5 }
+      ]}
+    >
       <TouchableOpacity style={styles.playBtn}>
-        <Text style={[styles.playIcon, !isUser && { color: BLUE }]}>▶</Text>
+        <Text style={[styles.playIcon, !isUser && { color: isDarkMode ? CYAN : PURPLE }]}>▶</Text>
       </TouchableOpacity>
       <View style={styles.staticBars}>
         {bars.map((h, i) => (
           <View
             key={i}
-            style={[styles.staticBar, { height: h, backgroundColor: isUser ? 'rgba(255,255,255,0.7)' : BLUE }]}
+            style={[
+              styles.staticBar,
+              { height: h, backgroundColor: isUser ? 'rgba(255,255,255,0.75)' : isDarkMode ? CYAN : PURPLE }
+            ]}
           />
         ))}
       </View>
-      <Text style={[styles.voiceDuration, !isUser && { color: '#64748B' }]}>
+      <Text style={[styles.voiceDuration, !isUser && { color: '#94A3B8' }]}>
         {duration || '0:10'}
       </Text>
-    </View>
+    </LinearGradient>
   );
 }
 
 // ── Message reactions row ─────────────────────────────────────────────────────
-function Reactions() {
+function Reactions({ isDarkMode }) {
   const [liked, setLiked] = useState(null);
   return (
     <View style={styles.reactionRow}>
       {[['👍', 'up'], ['👎', 'down'], ['🔊', 'speak'], ['🔄', 'regen']].map(([icon, key]) => (
         <TouchableOpacity
           key={key}
-          style={[styles.reactionBtn, liked === key && styles.reactionBtnActive]}
+          style={[
+            styles.reactionBtn,
+            isDarkMode && { backgroundColor: 'rgba(255, 255, 255, 0.05)' },
+            liked === key && (isDarkMode ? { backgroundColor: 'rgba(12, 221, 188, 0.2)' } : styles.reactionBtnActive)
+          ]}
           onPress={() => setLiked(liked === key ? null : key)}
         >
           <Text style={styles.reactionIcon}>{icon}</Text>
@@ -106,10 +132,10 @@ function Reactions() {
 }
 
 // ── Date chip ─────────────────────────────────────────────────────────────────
-function DateChip({ label }) {
+function DateChip({ label, isDarkMode }) {
   return (
-    <View style={styles.dateChip}>
-      <Text style={styles.dateChipText}>{label}</Text>
+    <View style={[styles.dateChip, isDarkMode && { backgroundColor: 'rgba(255, 255, 255, 0.06)' }]}>
+      <Text style={[styles.dateChipText, isDarkMode && { color: '#94A3B8' }]}>{label}</Text>
     </View>
   );
 }
@@ -123,7 +149,6 @@ const QUICK_ACTIONS = [
   { icon: '📸', label: 'Camera' },
 ];
 
-// ── Main ChatScreen ───────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
   const { mode = 'personal', user } = route.params || {};
   const { isDarkMode, colors: theme } = useTheme();
@@ -138,18 +163,48 @@ export default function ChatScreen({ route, navigation }) {
   const [showActions, setShowActions] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
 
-  // Mode Context States
   const [showModePopup, setShowModePopup] = useState(false);
   const [suggestedMode, setSuggestedMode] = useState(null);
-  const [pendingText, setPendingText] = useState('');
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const voiceTimerRef = useRef(null);
 
+  // Background Starfield stars for Chat backdrop
+  const stars = useRef(
+    Array.from({ length: 12 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * (height * 0.7),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
+  // Stargazing twinkle effects
+  useEffect(() => {
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
+
   const scrollToEnd = () => setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
-  // Format today date label
   const todayLabel = (() => {
     const d = new Date();
     return `Today, ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
@@ -159,7 +214,6 @@ export default function ChatScreen({ route, navigation }) {
     try {
       await api.patch('/users/me', { current_mode: newMode });
     } catch {}
-    // Update local messages to reflect switch gracefully
     setMessages(prev => [...prev, {
       id: Date.now().toString() + 'sys',
       role: 'assistant',
@@ -169,7 +223,6 @@ export default function ChatScreen({ route, navigation }) {
     setShowModePopup(false);
   };
 
-  // ── Send text message ──────────────────────────────────────────────────────
   const sendText = useCallback((text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -190,7 +243,6 @@ export default function ChatScreen({ route, navigation }) {
       const res = await api.post('/chat-completions', { query: trimmed });
       let aiText = res.data.response;
       
-      // Check for LLM intent detection
       const switchMatch = aiText.match(/\[SUGGEST_MODE_SWITCH:\s*(work|personal)\s*\]/i);
       if (switchMatch) {
          const newMode = switchMatch[1].toLowerCase();
@@ -214,10 +266,8 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── Toggle full-screen dictation ──────────────────────────────────────────
   const toggleDictation = async () => {
     if (isDictating) {
-      // Send the transcribed text
       sendText("What are the advantages of online education compared to traditional classroom learning?");
       setIsDictating(false);
     } else {
@@ -231,7 +281,6 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── Toggle inline voice note ───────────────────────────────────────────────
   const startVoiceNote = async () => {
     const { status } = await Audio.requestPermissionsAsync();
     if (status !== 'granted') {
@@ -260,7 +309,6 @@ export default function ChatScreen({ route, navigation }) {
     setMessages(prev => [...prev, voiceMsg]);
     scrollToEnd();
     
-    // AI text reply to voice
     setTimeout(() => {
       setMessages(prev => [...prev, {
         id: Date.now().toString() + 'ai',
@@ -278,74 +326,121 @@ export default function ChatScreen({ route, navigation }) {
     return `${m}:${s}`;
   };
 
-  // ── Render a single message ────────────────────────────────────────────────
   const renderMessage = ({ item }) => {
     const isUser = item.role === 'user';
     return (
       <View style={[styles.msgWrapper, isUser ? styles.msgWrapperUser : styles.msgWrapperAI]}>
         {item.type === 'voice' ? (
-          <VoiceBubble duration={item.duration} isUser={isUser} />
+          <VoiceBubble duration={item.duration} isUser={isUser} isDarkMode={isDarkMode} />
+        ) : isUser ? (
+          <LinearGradient
+            colors={[PURPLE, INDIGO]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.bubble, styles.bubbleUser]}
+          >
+            <Text style={[styles.bubbleText, styles.bubbleTextUser]}>{item.content}</Text>
+          </LinearGradient>
         ) : (
-          <View style={[styles.bubble, isUser ? styles.bubbleUser : [styles.bubbleAI, { backgroundColor: theme.card }]]}>
-            <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : { color: theme.text }]}>{item.content}</Text>
+          <View
+            style={[
+              styles.bubble,
+              styles.bubbleAI,
+              isDarkMode ? styles.bubbleAIDark : { backgroundColor: theme.card }
+            ]}
+          >
+            <Text style={[styles.bubbleText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>
+              {item.content}
+            </Text>
           </View>
         )}
-        {!isUser && <Reactions />}
+        {!isUser && <Reactions isDarkMode={isDarkMode} />}
       </View>
     );
   };
 
   return (
-    <LinearGradient colors={theme.gradient} style={styles.gradient}>
-      <SafeAreaView style={styles.safe}>
+    <LinearGradient
+      colors={isDarkMode ? ['#081E2D', '#05141E', '#030A0F'] : theme.gradient}
+      style={styles.gradient}
+    >
+      {/* Absolute twinkling star backdrop for high-end dark mode */}
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
 
+      <SafeAreaView style={styles.safe}>
         {/* ── Header ── */}
-        <View style={styles.header}>
-          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.headerBtnText, { color: theme.text }]}>←</Text>
+        <View style={[styles.header, isDarkMode && styles.headerDark]}>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>←</Text>
           </TouchableOpacity>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {user?.avatar_url && mode !== 'work' ? (
               <Image source={{ uri: user.avatar_url }} style={{ width: 32, height: 32, borderRadius: 16 }} />
             ) : null}
-            <Text style={[styles.headerTitle, { color: theme.text }]}>
+            <Text style={[styles.headerTitle, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>
               {mode === 'work' ? '💼 Work Twin' : '🌿 Personal Twin'}
             </Text>
           </View>
 
-          <TouchableOpacity style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)' }]}>
-            <Text style={[styles.headerBtnText, { color: theme.text }]}>⋮</Text>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+          >
+            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>⋮</Text>
           </TouchableOpacity>
         </View>
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-
-          {/* ── VOICE DICTATION VIEW (Mockup 3) ── */}
           {isDictating ? (
             <View style={styles.voiceScreen}>
-              <DateChip label={todayLabel} />
+              <DateChip label={todayLabel} isDarkMode={isDarkMode} />
               <View style={styles.waveformFull}>
-                <WaveformBars active={true} height={120} barCount={40} color="#3B82F6" />
-                <Text style={styles.dictationText}>
+                <WaveformBars active={true} height={120} barCount={40} color={CYAN} />
+                <Text style={[styles.dictationText, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
                   What are the advantages of online education compared to traditional classroom learning.....
                 </Text>
               </View>
-              <View style={[styles.voiceControls, { backgroundColor: isDarkMode ? 'rgba(30,41,59,0.8)' : 'rgba(255,255,255,0.8)' }]}>
-                <TouchableOpacity style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? '#0F172A' : '#fff' }]} onPress={() => { setIsDictating(false); inputRef.current?.focus(); }}>
-                  <Text style={styles.voiceCtrlIcon}>⌨️</Text>
+              <View style={[styles.voiceControls, { backgroundColor: isDarkMode ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.8)' }]}>
+                <TouchableOpacity
+                  style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#fff' }]}
+                  onPress={() => { setIsDictating(false); inputRef.current?.focus(); }}
+                >
+                  <Text style={[styles.voiceCtrlIcon, { color: isDarkMode ? '#FFFFFF' : '#000' }]}>⌨️</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.voiceCtrlBtn, styles.voiceMicBtn]} onPress={toggleDictation}>
-                  <Text style={[styles.voiceCtrlIcon, {color: '#fff'}]}>🎤</Text>
+                <TouchableOpacity
+                  style={[styles.voiceCtrlBtn, styles.voiceMicBtn, { backgroundColor: CYAN }]}
+                  onPress={toggleDictation}
+                >
+                  <Text style={[styles.voiceCtrlIcon, { color: '#070A13' }]}>🎤</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? '#0F172A' : '#fff' }]} onPress={() => setIsDictating(false)}>
-                  <Text style={[styles.voiceCtrlIcon, { color: theme.text }]}>✕</Text>
+                <TouchableOpacity
+                  style={[styles.voiceCtrlBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#fff' }]}
+                  onPress={() => setIsDictating(false)}
+                >
+                  <Text style={[styles.voiceCtrlIcon, { color: isDarkMode ? '#FFFFFF' : '#000' }]}>✕</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <>
-              {/* ── Messages list ── */}
               <FlatList
                 ref={listRef}
                 data={messages}
@@ -353,55 +448,75 @@ export default function ChatScreen({ route, navigation }) {
                 renderItem={renderMessage}
                 contentContainerStyle={styles.msgList}
                 showsVerticalScrollIndicator={false}
-                ListHeaderComponent={<DateChip label={todayLabel} />}
+                ListHeaderComponent={<DateChip label={todayLabel} isDarkMode={isDarkMode} />}
                 onContentSizeChange={scrollToEnd}
               />
 
               {loading && (
                 <View style={styles.typingRow}>
-                  <ActivityIndicator size="small" color={BLUE} />
-                  <Text style={styles.typingText}>Twin is thinking…</Text>
+                  <ActivityIndicator size="small" color={CYAN} />
+                  <Text style={[styles.typingText, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
+                    Twin is thinking…
+                  </Text>
                 </View>
               )}
 
-              {/* ── Quick Actions ── */}
               {showActions && (
-                <View style={styles.quickActionsBar}>
+                <View style={[styles.quickActionsBar, isDarkMode && styles.quickActionsBarDark]}>
                   {QUICK_ACTIONS.map(a => (
                     <TouchableOpacity key={a.label} style={styles.actionItem} activeOpacity={0.7}>
                       <Text style={styles.actionIcon}>{a.icon}</Text>
-                      <Text style={styles.actionLabel}>{a.label}</Text>
+                      <Text style={[styles.actionLabel, isDarkMode && { color: '#94A3B8' }]}>{a.label}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               )}
 
-              {/* ── Input bar (Mockup 4 & 5) ── */}
-              <View style={[styles.inputBar, { backgroundColor: theme.card, borderTopColor: theme.border }]}>
+              {/* ── Input bar ── */}
+              <View
+                style={[
+                  styles.inputBar,
+                  isDarkMode
+                    ? styles.inputBarDark
+                    : { backgroundColor: theme.card, borderTopColor: theme.border }
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.inputSideBtn}
                   onPress={() => setShowActions(!showActions)}
                 >
-                  <Text style={[styles.inputSideBtnText, { color: theme.text }]}>+</Text>
+                  <Text style={[styles.inputSideBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>+</Text>
                 </TouchableOpacity>
 
                 {isVoiceNote ? (
-                  <View style={styles.inlineVoiceBox}>
-                    <TouchableOpacity onPress={cancelVoiceNote} style={styles.inlineVoiceCancel}>
-                      <Text style={styles.inlineVoiceCancelText}>✕</Text>
+                  <View style={[styles.inlineVoiceBox, isDarkMode && styles.inlineVoiceBoxDark]}>
+                    <TouchableOpacity
+                      onPress={cancelVoiceNote}
+                      style={[styles.inlineVoiceCancel, isDarkMode && { backgroundColor: 'rgba(255,255,255,0.06)' }]}
+                    >
+                      <Text style={[styles.inlineVoiceCancelText, isDarkMode && { color: '#FFFFFF' }]}>✕</Text>
                     </TouchableOpacity>
                     <View style={{ flex: 1, paddingHorizontal: 10 }}>
-                      <WaveformBars active={true} height={24} barCount={20} color={BLUE} />
+                      <WaveformBars active={true} height={24} barCount={20} color={CYAN} />
                     </View>
-                    <Text style={styles.inlineVoiceTime}>{formatTime(voiceTime)}</Text>
+                    <Text style={[styles.inlineVoiceTime, isDarkMode && { color: '#FFFFFF' }]}>
+                      {formatTime(voiceTime)}
+                    </Text>
                   </View>
                 ) : (
-                  <View style={[styles.inputWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
+                  <View
+                    style={[
+                      styles.inputWrap,
+                      isDarkMode
+                        ? styles.inputWrapDark
+                        : { backgroundColor: theme.inputBg, borderColor: theme.border }
+                    ]}
+                  >
                     <TextInput
                       ref={inputRef}
-                      style={[styles.textInput, { color: theme.text }]}
+                      style={[styles.textInput, { color: isDarkMode ? '#FFFFFF' : theme.text }]}
                       placeholder="Type a message.."
-                      placeholderTextColor={theme.textSecondary}
+                      placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.35)' : theme.textSecondary}
                       value={input}
                       onChangeText={setInput}
                       returnKeyType="send"
@@ -413,17 +528,22 @@ export default function ChatScreen({ route, navigation }) {
                       onPress={toggleDictation}
                       onLongPress={startVoiceNote}
                     >
-                      <Text style={[styles.inputMicIcon, { color: theme.textSecondary }]}>🎤</Text>
+                      <Text style={[styles.inputMicIcon, { color: isDarkMode ? '#94A3B8' : theme.textSecondary }]}>🎤</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 <TouchableOpacity
-                  style={[styles.sendBtn, { backgroundColor: theme.inputBg }]}
+                  style={[
+                    styles.sendBtn,
+                    isDarkMode
+                      ? styles.sendBtnDark
+                      : { backgroundColor: theme.inputBg }
+                  ]}
                   onPress={() => isVoiceNote ? sendVoiceNote() : sendText(input)}
                   disabled={!isVoiceNote && (!input.trim() || loading)}
                 >
-                  <Text style={[styles.sendBtnIcon, { color: theme.text }]}>➤</Text>
+                  <Text style={[styles.sendBtnIcon, { color: isDarkMode ? CYAN : theme.text }]}>➤</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -432,27 +552,38 @@ export default function ChatScreen({ route, navigation }) {
           {/* ── Contextual Mode Switch Popup ── */}
           {showModePopup && (
             <View style={styles.popupOverlay}>
-              <View style={styles.popupCard}>
-                <View style={styles.popupIconWrap}>
+              <View style={[styles.popupCard, isDarkMode && styles.popupCardDark]}>
+                <View style={[styles.popupIconWrap, { backgroundColor: isDarkMode ? 'rgba(12, 221, 188, 0.12)' : '#EFF6FF' }]}>
                   <Text style={styles.popupIcon}>{suggestedMode === 'work' ? '🏢' : '🏠'}</Text>
                 </View>
-                <Text style={styles.popupTitle}>Switch Mode?</Text>
-                <Text style={styles.popupDesc}>
+                <Text style={[styles.popupTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
+                  Switch Mode?
+                </Text>
+                <Text style={[styles.popupDesc, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
                   I noticed you're talking about {suggestedMode === 'work' ? 'work stuff' : 'personal topics'}. 
                   Should I switch to {suggestedMode === 'work' ? 'Work' : 'Personal'} Mode?
                 </Text>
                 <View style={styles.popupBtnRow}>
-                  <TouchableOpacity style={styles.popupBtnNo} onPress={() => setShowModePopup(false)}>
-                    <Text style={styles.popupBtnNoText}>Stay in {mode}</Text>
+                  <TouchableOpacity
+                    style={[styles.popupBtnNo, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}
+                    onPress={() => setShowModePopup(false)}
+                  >
+                    <Text style={[styles.popupBtnNoText, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
+                      Stay in {mode}
+                    </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.popupBtnYes} onPress={() => handleModeChange(suggestedMode)}>
-                    <Text style={styles.popupBtnYesText}>Yes, Switch</Text>
+                  <TouchableOpacity
+                    style={[styles.popupBtnYes, { backgroundColor: isDarkMode ? CYAN : BLUE }]}
+                    onPress={() => handleModeChange(suggestedMode)}
+                  >
+                    <Text style={[styles.popupBtnYesText, { color: isDarkMode ? '#070A13' : '#FFFFFF' }]}>
+                      Yes, Switch
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
             </View>
           )}
-
         </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
@@ -462,9 +593,14 @@ export default function ChatScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
+  star: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
+  headerDark: { borderBottomColor: 'rgba(255,255,255,0.06)' },
   headerBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' },
   headerBtnText: { fontSize: 18, color: '#1E293B', fontWeight: '600' },
   headerTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
@@ -479,15 +615,25 @@ const styles = StyleSheet.create({
   msgWrapperUser: { alignItems: 'flex-end' },
   msgWrapperAI: { alignItems: 'flex-start' },
   bubble: { maxWidth: '80%', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20 },
-  bubbleUser: { backgroundColor: BLUE, borderTopRightRadius: 4 },
+  bubbleUser: { borderTopRightRadius: 4 },
   bubbleAI: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 4, shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 2 },
-  bubbleText: { fontSize: 15, color: '#1E293B', lineHeight: 22 },
+  bubbleAIDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  bubbleText: { fontSize: 15, color: '#1E293B', lineHeight: 22, fontWeight: '500' },
   bubbleTextUser: { color: '#FFFFFF' },
 
   // Voice bubble
   voiceBubble: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 20, gap: 10, maxWidth: '75%' },
-  voiceBubbleUser: { backgroundColor: BLUE, borderTopRightRadius: 4 },
-  voiceBubbleAI: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 4, shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 2 },
+  voiceBubbleUser: { borderTopRightRadius: 4 },
+  voiceBubbleAI: { borderTopLeftRadius: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 2 },
   playBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
   playIcon: { fontSize: 12, color: '#fff', marginLeft: 2 },
   staticBars: { flexDirection: 'row', alignItems: 'center', gap: 2, flex: 1 },
@@ -506,9 +652,13 @@ const styles = StyleSheet.create({
 
   // Quick actions
   quickActionsBar: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'rgba(255,255,255,0.9)', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)' },
+  quickActionsBarDark: {
+    backgroundColor: 'rgba(10, 15, 28, 0.98)',
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
   actionItem: { alignItems: 'center', gap: 4 },
   actionIcon: { fontSize: 24 },
-  actionLabel: { fontSize: 11, color: '#64748B', fontWeight: '500' },
+  actionLabel: { fontSize: 11, color: '#64748B', fontWeight: '600' },
 
   // Input bar
   inputBar: {
@@ -518,18 +668,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)',
   },
+  inputBarDark: {
+    backgroundColor: 'rgba(10, 15, 28, 0.98)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
   inputSideBtn: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
   inputSideBtnText: { fontSize: 28, color: '#1E293B', fontWeight: '300', marginTop: -4 },
   inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', backgroundColor: '#F8FAFC', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', minHeight: 42, maxHeight: 100 },
-  textInput: { flex: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 15, color: '#1E293B' },
+  inputWrapDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  textInput: { flex: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12, fontSize: 15 },
   inputMicBtn: { width: 40, height: 42, justifyContent: 'center', alignItems: 'center' },
-  inputMicIcon: { fontSize: 20, color: '#64748B' },
+  inputMicIcon: { fontSize: 20 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3 },
-  sendBtnDisabled: { opacity: 0.5 },
-  sendBtnIcon: { fontSize: 18, color: '#1E293B', marginLeft: 2 },
-
+  sendBtnDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#000',
+  },
+  sendBtnIcon: { fontSize: 18, marginLeft: 2 },
+ 
   // Inline voice note
   inlineVoiceBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', height: 42, paddingHorizontal: 6 },
+  inlineVoiceBoxDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
   inlineVoiceCancel: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' },
   inlineVoiceCancelText: { fontSize: 14, color: '#64748B' },
   inlineVoiceTime: { fontSize: 14, color: '#64748B', fontWeight: '600', marginRight: 6 },
@@ -537,10 +703,10 @@ const styles = StyleSheet.create({
   // Voice recording screen
   voiceScreen: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 20 },
   waveformFull: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
-  dictationText: { fontSize: 22, color: '#0F172A', fontWeight: '500', textAlign: 'center', marginTop: 40, lineHeight: 32 },
-  voiceControls: { flexDirection: 'row', alignItems: 'center', gap: 32, paddingBottom: Platform.OS === 'ios' ? 24 : 12 },
+  dictationText: { fontSize: 22, fontWeight: '500', textAlign: 'center', marginTop: 40, lineHeight: 32 },
+  voiceControls: { flexDirection: 'row', alignItems: 'center', gap: 32, paddingBottom: Platform.OS === 'ios' ? 24 : 12, paddingHorizontal: 24, paddingVertical: 14, borderRadius: 40 },
   voiceCtrlBtn: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
-  voiceMicBtn: { width: 72, height: 72, borderRadius: 36, backgroundColor: BLUE },
+  voiceMicBtn: { width: 72, height: 72, borderRadius: 36 },
   voiceCtrlIcon: { fontSize: 22 },
 
   // Popup
@@ -561,6 +727,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
+  },
+  popupCardDark: {
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   popupIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#EFF6FF', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
   popupIcon: { fontSize: 28 },

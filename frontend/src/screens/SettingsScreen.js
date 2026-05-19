@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
 
 const BLUE = '#2563EB';
@@ -19,8 +20,9 @@ export default function SettingsScreen({ navigation, onLogout }) {
     }, [])
   );
 
-  const confirmLogout = () => {
+  const confirmLogout = async () => {
     setShowLogoutModal(false);
+    await AsyncStorage.removeItem('onboardingSeen');
     if (onLogout) onLogout();
   };
 
@@ -78,7 +80,7 @@ export default function SettingsScreen({ navigation, onLogout }) {
               >
                 <View style={styles.menuLeft}>
                   <Text style={styles.menuIcon}>{item.icon}</Text>
-                  <Text style={[styles.menuLabel, { color: theme.cardText }]}>{item.label}</Text>
+                  <Text style={[styles.menuLabel, { color: theme.text }]}>{item.label}</Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
               </TouchableOpacity>
@@ -88,12 +90,12 @@ export default function SettingsScreen({ navigation, onLogout }) {
             <View style={[styles.menuItem, { backgroundColor: theme.card }]}>
               <View style={styles.menuLeft}>
                 <Text style={styles.menuIcon}>👁️</Text>
-                <Text style={[styles.menuLabel, { color: theme.cardText }]}>Dark Mode</Text>
+                <Text style={[styles.menuLabel, { color: theme.text }]}>Dark Mode</Text>
               </View>
               <Switch
                 value={isDarkMode}
                 onValueChange={toggleTheme}
-                trackColor={{ false: '#E2E8F0', true: BLUE }}
+                trackColor={{ false: isDarkMode ? '#1E293B' : '#E2E8F0', true: theme.primary }}
                 thumbColor="#fff"
               />
             </View>
@@ -120,7 +122,7 @@ export default function SettingsScreen({ navigation, onLogout }) {
             </Text>
             
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setShowLogoutModal(false)}>
+              <TouchableOpacity style={[styles.modalCancelBtn, { backgroundColor: theme.primary }]} onPress={() => setShowLogoutModal(false)}>
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.modalLogoutBtn, { borderColor: theme.border }]} onPress={confirmLogout}>

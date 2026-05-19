@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, Layout
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { useTheme } from '../context/ThemeContext';
+
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -16,6 +18,7 @@ const FAQS = [
 ];
 
 export default function HelpCenterScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [expanded, setExpanded] = useState('How do I contact support?');
 
   const toggleExpand = (q) => {
@@ -24,24 +27,24 @@ export default function HelpCenterScreen({ navigation }) {
   };
 
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Help Center</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Help Center</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        <View style={styles.searchWrap}>
+        <View style={[styles.searchWrap, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput 
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: theme.text }]}
             placeholder="Search..."
             placeholderTextColor="#A0AABF"
           />
-          <TouchableOpacity style={styles.filterBtn}>
+          <TouchableOpacity style={[styles.filterBtn, { borderLeftColor: theme.border }]}>
             <Text style={styles.filterIcon}>⎘</Text>
           </TouchableOpacity>
         </View>
@@ -52,16 +55,16 @@ export default function HelpCenterScreen({ navigation }) {
             return (
               <TouchableOpacity
                 key={faq.q}
-                style={[styles.faqCard, isExpanded && styles.faqCardExpanded]}
+                style={[styles.faqCard, { backgroundColor: theme.card }, isExpanded && styles.faqCardExpanded]}
                 onPress={() => toggleExpand(faq.q)}
                 activeOpacity={0.8}
               >
                 <View style={styles.faqHeader}>
-                  <Text style={styles.faqQ}>{faq.q}</Text>
-                  <Text style={styles.faqChevron}>{isExpanded ? '⌃' : '›'}</Text>
+                  <Text style={[styles.faqQ, { color: theme.text }]}>{faq.q}</Text>
+                  <Text style={[styles.faqChevron, { color: theme.textSecondary }]}>{isExpanded ? '⌃' : '›'}</Text>
                 </View>
                 {isExpanded && (
-                  <Text style={styles.faqA}>{faq.a}</Text>
+                  <Text style={[styles.faqA, { color: theme.textSecondary }]}>{faq.a}</Text>
                 )}
               </TouchableOpacity>
             );

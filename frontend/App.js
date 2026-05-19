@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Animated, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -39,19 +39,26 @@ const fadeInterpolator = ({ current }) => ({
   cardStyle: { opacity: current.progress },
 });
 
-// appState: 'loading' | 'onboarding' | 'auth' | 'mic' | 'app'
 export default function App() {
   const [appState, setAppState] = useState('loading');
+  const [splashVisible, setSplashVisible] = useState(true);
+  const splashOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => { bootstrap(); }, []);
 
   const bootstrap = async () => {
+    const startTime = Date.now();
     try {
       const [token, onboardingSeen, micAsked] = await Promise.all([
         AsyncStorage.getItem('userToken'),
         AsyncStorage.getItem('onboardingSeen'),
         AsyncStorage.getItem('micPermissionAsked'),
       ]);
+
+      // Ensure the Splash animation runs for at least 2.8s (2800ms)
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = Math.max(0, 2800 - elapsedTime);
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
 
       if (token) {
         setAppState(micAsked ? 'app' : 'mic');
@@ -61,9 +68,25 @@ export default function App() {
         setAppState('onboarding');
       }
     } catch {
+      const elapsedTime = Date.now() - startTime;
+      const remainingTime = Math.max(0, 2800 - elapsedTime);
+      await new Promise(resolve => setTimeout(resolve, remainingTime));
       setAppState('onboarding');
     }
   };
+
+  // Fluid transition: fade out splash overlay once bootstrap finishes loading
+  useEffect(() => {
+    if (appState !== 'loading') {
+      Animated.timing(splashOpacity, {
+        toValue: 0,
+        duration: 550,
+        useNativeDriver: true,
+      }).start(() => {
+        setSplashVisible(false);
+      });
+    }
+  }, [appState]);
 
   const finishOnboarding = async () => {
     await AsyncStorage.setItem('onboardingSeen', 'true');
@@ -82,84 +105,96 @@ export default function App() {
     setAppState('auth');
   };
 
-  if (appState === 'loading') {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', backgroundColor: '#EBF4FF' }}>
-        <ActivityIndicator size="large" color="#2563EB" />
-      </View>
-    );
-  }
+  // Core app tree rendered underneath the splash overlay
+  const renderAppContent = () => {
+    if (appState === 'loading') {
+      return <View style={{ flex: 1, backgroundColor: '#EEF6FF' }} />;
+    }
 
-  // ── Mic Permission (shown once, right after first login) ──────────────────
-  if (appState === 'mic') {
-    return <MicrophonePermissionScreen onPermissionDone={handleMicDone} />;
-  }
+    if (appState === 'mic') {
+      return <MicrophonePermissionScreen onPermissionDone={handleMicDone} />;
+    }
+
+    return (
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName={appState === 'onboarding' ? 'Onboarding' : undefined}
+          screenOptions={{
+            headerShown: false,
+            cardStyleInterpolator: fadeInterpolator,
+            animationEnabled: true,
+          }}
+        >
+          {/* ── Onboarding ── */}
+          {appState === 'onboarding' && (
+            <>
+              <Stack.Screen name="Splash" component={SplashScreen} />
+              <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+              <Stack.Screen name="GetStarted">
+                {p => <GetStartedScreen {...p} onOnboardingComplete={finishOnboarding} />}
+              </Stack.Screen>
+              <Stack.Screen name="SignUp">
+                {p => <SignUpScreen {...p} onLoginSuccess={handleLoginSuccess} />}
+              </Stack.Screen>
+              <Stack.Screen name="Login">
+                {p => <LoginScreen {...p} onLoginSuccess={handleLoginSuccess} />}
+              </Stack.Screen>
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </>
+          )}
+
+          {/* ── Auth ── */}
+          {appState === 'auth' && (
+            <>
+              <Stack.Screen name="Login">
+                {p => <LoginScreen {...p} onLoginSuccess={handleLoginSuccess} />}
+              </Stack.Screen>
+              <Stack.Screen name="SignUp">
+                {p => <SignUpScreen {...p} onLoginSuccess={handleLoginSuccess} />}
+              </Stack.Screen>
+              <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            </>
+          )}
+
+          {/* ── Authenticated App ── */}
+          {appState === 'app' && (
+            <>
+              <Stack.Screen name="Home">
+                {p => <HomeScreen {...p} onLogout={handleLogout} />}
+              </Stack.Screen>
+              <Stack.Screen name="Chat" component={ChatScreen} />
+              <Stack.Screen name="Settings">
+                {p => <SettingsScreen {...p} onLogout={handleLogout} />}
+              </Stack.Screen>
+              <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+              <Stack.Screen name="IntegrationsHub" component={IntegrationsHubScreen} />
+              <Stack.Screen name="IntegrationDetail" component={IntegrationDetailScreen} />
+              <Stack.Screen name="IntegrationSuccess" component={IntegrationSuccessScreen} />
+              <Stack.Screen name="Integrations" component={IntegrationsScreen} />
+              <Stack.Screen name="Language" component={LanguageScreen} />
+              <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
+              <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+              <Stack.Screen name="DocumentEditor" component={DocumentEditor} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    );
+  };
 
   return (
     <ThemeProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          cardStyleInterpolator: fadeInterpolator,
-          animationEnabled: true,
-        }}
-      >
-        {/* ── Onboarding ── */}
-        {appState === 'onboarding' && (
-          <>
-            <Stack.Screen name="Splash" component={SplashScreen} />
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="GetStarted">
-              {p => <GetStartedScreen {...p} onOnboardingComplete={finishOnboarding} />}
-            </Stack.Screen>
-            <Stack.Screen name="SignUp">
-              {p => <SignUpScreen {...p} onLoginSuccess={handleLoginSuccess} />}
-            </Stack.Screen>
-            <Stack.Screen name="Login">
-              {p => <LoginScreen {...p} onLoginSuccess={handleLoginSuccess} />}
-            </Stack.Screen>
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          </>
-        )}
+      <View style={{ flex: 1 }}>
+        {renderAppContent()}
 
-        {/* ── Auth ── */}
-        {appState === 'auth' && (
-          <>
-            <Stack.Screen name="Login">
-              {p => <LoginScreen {...p} onLoginSuccess={handleLoginSuccess} />}
-            </Stack.Screen>
-            <Stack.Screen name="SignUp">
-              {p => <SignUpScreen {...p} onLoginSuccess={handleLoginSuccess} />}
-            </Stack.Screen>
-            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          </>
+        {/* Absolute Splash Screen Overlay to create a fluid, seamless launch transition */}
+        {splashVisible && (
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: splashOpacity, zIndex: 999 }]}>
+            <SplashScreen />
+          </Animated.View>
         )}
-
-        {/* ── Authenticated App ── */}
-        {appState === 'app' && (
-          <>
-            <Stack.Screen name="Home">
-              {p => <HomeScreen {...p} onLogout={handleLogout} />}
-            </Stack.Screen>
-            <Stack.Screen name="Chat" component={ChatScreen} />
-            <Stack.Screen name="Settings">
-              {p => <SettingsScreen {...p} onLogout={handleLogout} />}
-            </Stack.Screen>
-            <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-            <Stack.Screen name="IntegrationsHub" component={IntegrationsHubScreen} />
-            <Stack.Screen name="IntegrationDetail" component={IntegrationDetailScreen} />
-            <Stack.Screen name="IntegrationSuccess" component={IntegrationSuccessScreen} />
-            <Stack.Screen name="Integrations" component={IntegrationsScreen} />
-            <Stack.Screen name="Language" component={LanguageScreen} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
-            <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
-            <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
-            <Stack.Screen name="DocumentEditor" component={DocumentEditor} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+      </View>
     </ThemeProvider>
   );
 }

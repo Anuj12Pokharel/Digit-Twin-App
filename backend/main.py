@@ -411,10 +411,41 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
     if not api_key:
         raise HTTPException(status_code=500, detail="API Key missing")
 
-    if current_user.current_mode == "personal":
+    active_mode = current_user.current_mode
+    is_neutral_routing = False
+
+    if active_mode == "neutral":
+        is_neutral_routing = True
+        work_keywords = ["jira", "task", "calendar", "meeting", "deadline", "project", "schedule", "work", "office", "email", "todo", "ticket", "sprint", "job", "manager", "boss"]
+        personal_keywords = ["gym", "fitness", "movie", "food", "cook", "hobbies", "leisure", "vacation", "trip", "personal", "hobby", "health", "workout", "recipe", "song", "play", "sleep", "family", "friend"]
+        
+        query_lower = req.query.lower()
+        work_score = sum(query_lower.count(k) for k in work_keywords)
+        personal_score = sum(query_lower.count(k) for k in personal_keywords)
+        
+        if work_score > personal_score:
+            active_mode = "work"
+        elif personal_score > work_score:
+            active_mode = "personal"
+        else:
+            if any(w in query_lower for w in ["what", "how", "why", "who", "where"]):
+                active_mode = "personal"
+            else:
+                active_mode = "work"
+
+    if active_mode == "personal":
         instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
+        if is_neutral_routing:
+            instr += "(Dynamically routed from NEUTRAL mode based on your personal intent). "
         instr += "You are an intelligent assistant that answers questions using up-to-date web data. "
         
+        try:
+            with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
+                training_content = f.read()
+            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
+        except FileNotFoundError:
+            pass
+            
         context_text = ""
         try:
             # Perform a web search using duckduckgo
@@ -433,6 +464,8 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
         instr += "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to WORK MODE, or is strongly related to work tasks (Jira, meetings, project deadlines), prepend your exact response with '[SUGGEST_MODE_SWITCH: work]'. "
     else:
         instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
+        if is_neutral_routing:
+            instr += "(Dynamically routed from NEUTRAL mode based on your work/professional intent). "
         if current_user.jira_config:
             instr += f"Jira is connected to {current_user.jira_config.domain}. "
         if current_user.google_calendar_config:
@@ -478,6 +511,9 @@ async def get_realtime_session(current_user: models.User = Depends(auth.get_curr
             pass
 
         instr += "Always speak in the FIRST PERSON ('I am...', 'My philosophy is...') to maintain the illusion of being the user's replica."
+    elif current_user.current_mode == "neutral":
+        instr = f"You are the Balanced Digital Twin of {current_user.full_name or current_user.email}. This is NEUTRAL MODE. "
+        instr += "You assist with a healthy balance of everyday routines, scheduling, and casual learning. Be conversational, balanced, and direct."
     else:
         instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
         if current_user.jira_config:

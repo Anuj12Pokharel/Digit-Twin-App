@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
 
 const BLUE = '#2563EB';
 const OTP_LENGTH = 6;
@@ -42,24 +43,44 @@ function Page({ children }) {
 
 // ── Back button ───────────────────────────────────────────────────────────────
 function BackBtn({ onPress }) {
+  const { colors, isDarkMode } = useTheme();
   return (
-    <TouchableOpacity style={styles.backBtn} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.backBtnText}>←</Text>
+    <TouchableOpacity 
+      style={[
+        styles.backBtn, 
+        { 
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)',
+          shadowColor: colors.bottomNavShadow,
+        }
+      ]} 
+      onPress={onPress} 
+      activeOpacity={0.7}
+    >
+      <Text style={[styles.backBtnText, { color: colors.text }]}>←</Text>
     </TouchableOpacity>
   );
 }
 
 // ── Error banner ──────────────────────────────────────────────────────────────
 function ErrorBanner({ msg }) {
+  const { colors } = useTheme();
   if (!msg) return null;
   return (
-    <View style={styles.errorBanner}>
-      <Text style={styles.errorText}>⚠️  {msg}</Text>
+    <View style={[
+      styles.errorBanner,
+      {
+        backgroundColor: colors.dangerBg,
+        borderColor: colors.dangerText,
+      }
+    ]}>
+      <Text style={[styles.errorText, { color: colors.dangerText }]}>⚠️  {msg}</Text>
     </View>
   );
 }
 
 export default function ForgotPasswordScreen({ navigation }) {
+  const { colors, isDarkMode } = useTheme();
+  const BLUE = isDarkMode ? '#00F0FF' : '#2563EB';
   const [step, setStep] = useState('email');          // 'email' | 'otp' | 'newPassword' | 'success'
   const [email, setEmail] = useState('');
   const [otpDigits, setOtpDigits] = useState(Array(OTP_LENGTH).fill(''));
@@ -180,14 +201,18 @@ export default function ForgotPasswordScreen({ navigation }) {
   const renderHeader = (title, subtitle) => (
     <View style={styles.headerSection}>
       <BackBtn onPress={goBack} />
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
     </View>
   );
 
   const renderPrimaryBtn = (label, onPress) => (
     <TouchableOpacity
-      style={[styles.primaryBtn, loading && styles.primaryBtnDisabled]}
+      style={[
+        styles.primaryBtn,
+        { backgroundColor: colors.primary, shadowColor: colors.primary },
+        loading && styles.primaryBtnDisabled
+      ]}
       onPress={onPress}
       disabled={loading}
       activeOpacity={0.85}
@@ -209,12 +234,12 @@ export default function ForgotPasswordScreen({ navigation }) {
       )}
       <ErrorBanner msg={error} />
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Email</Text>
-        <View style={styles.inputCard}>
+        <Text style={[styles.label, { color: colors.text }]}>Email</Text>
+        <View style={[styles.inputCard, { backgroundColor: colors.inputBg, borderColor: colors.border, borderWidth: isDarkMode ? 1.5 : 0 }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { color: colors.text }]}
             placeholder="wilson@09gmail.com"
-            placeholderTextColor="#A0AABF"
+            placeholderTextColor="rgba(255,255,255,0.35)"
             value={email}
             onChangeText={v => { setEmail(v); setError(''); }}
             autoCapitalize="none"
@@ -241,11 +266,15 @@ export default function ForgotPasswordScreen({ navigation }) {
         {otpDigits.map((digit, i) => (
           <View
             key={i}
-            style={[styles.otpBox, digit ? styles.otpBoxFilled : styles.otpBoxEmpty]}
+            style={[
+              styles.otpBox,
+              { backgroundColor: colors.inputBg, borderColor: colors.border },
+              digit ? { borderColor: BLUE } : styles.otpBoxEmpty
+            ]}
           >
             <TextInput
               ref={otpRefs.current[i]}
-              style={styles.otpInput}
+              style={[styles.otpInput, { color: colors.text }]}
               value={digit}
               onChangeText={t => handleOTPChange(t, i)}
               onKeyPress={e => handleOTPKeyPress(e, i)}
@@ -261,13 +290,13 @@ export default function ForgotPasswordScreen({ navigation }) {
       {/* Countdown + Resend */}
       <View style={styles.resendRow}>
         {countdown > 0 ? (
-          <Text style={styles.countdownText}>
+          <Text style={[styles.countdownText, { color: colors.textSecondary }]}>
             You can resend the code in{' '}
-            <Text style={styles.countdownHighlight}>{countdown} seconds</Text>
+            <Text style={[styles.countdownHighlight, { color: BLUE }]}>{countdown} seconds</Text>
           </Text>
         ) : null}
         <TouchableOpacity onPress={handleResend} disabled={countdown > 0 || loading}>
-          <Text style={[styles.resendText, countdown > 0 && styles.resendTextDisabled]}>
+          <Text style={[styles.resendText, { color: BLUE }, countdown > 0 && styles.resendTextDisabled]}>
             Resend Code
           </Text>
         </TouchableOpacity>
@@ -286,12 +315,12 @@ export default function ForgotPasswordScreen({ navigation }) {
       <ErrorBanner msg={error} />
 
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Password</Text>
-        <View style={styles.inputCard}>
+        <Text style={[styles.label, { color: colors.text }]}>Password</Text>
+        <View style={[styles.inputCard, { backgroundColor: colors.inputBg, borderColor: colors.border, borderWidth: isDarkMode ? 1.5 : 0 }]}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, color: colors.text }]}
             placeholder="••••••••••••"
-            placeholderTextColor="#A0AABF"
+            placeholderTextColor="rgba(255,255,255,0.35)"
             value={password}
             onChangeText={v => { setPassword(v); setError(''); }}
             secureTextEntry={!showPassword}
@@ -304,12 +333,12 @@ export default function ForgotPasswordScreen({ navigation }) {
       </View>
 
       <View style={[styles.fieldGroup, { marginTop: 16 }]}>
-        <Text style={styles.label}>Confirm Password</Text>
-        <View style={styles.inputCard}>
+        <Text style={[styles.label, { color: colors.text }]}>Confirm Password</Text>
+        <View style={[styles.inputCard, { backgroundColor: colors.inputBg, borderColor: colors.border, borderWidth: isDarkMode ? 1.5 : 0 }]}>
           <TextInput
-            style={[styles.input, { flex: 1 }]}
+            style={[styles.input, { flex: 1, color: colors.text }]}
             placeholder="••••••••••••"
-            placeholderTextColor="#A0AABF"
+            placeholderTextColor="rgba(255,255,255,0.35)"
             value={confirmPassword}
             onChangeText={v => { setConfirmPassword(v); setError(''); }}
             secureTextEntry={!showConfirm}
@@ -333,10 +362,10 @@ export default function ForgotPasswordScreen({ navigation }) {
       {/* Dimmed background */}
       <View style={styles.successOverlay}>
         {/* Success card */}
-        <View style={styles.successCard}>
+        <View style={[styles.successCard, { backgroundColor: colors.card, shadowColor: colors.primary }]}>
           {/* App icon */}
-          <View style={styles.successIconWrap}>
-            <View style={styles.successIconBg}>
+          <View style={[styles.successIconWrap, { shadowColor: colors.primary }]}>
+            <View style={[styles.successIconBg, { backgroundColor: colors.primary }]}>
               <View style={styles.stackIcon}>
                 {[0, 12, 24].map((top, i) => (
                   <View key={i} style={[styles.stackLayer, { top, opacity: 1 - i * 0.25 }]} />
@@ -345,14 +374,14 @@ export default function ForgotPasswordScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.successTitle}>Password Changed!</Text>
-          <Text style={styles.successSubtitle}>
+          <Text style={[styles.successTitle, { color: colors.text }]}>Password Changed!</Text>
+          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
             Your password has been successfully updated.{'\n'}
             You can now log in with your new password.
           </Text>
 
           <TouchableOpacity
-            style={styles.loginNowBtn}
+            style={[styles.loginNowBtn, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
             onPress={() => navigation.navigate('Login')}
             activeOpacity={0.85}
           >
@@ -376,7 +405,7 @@ export default function ForgotPasswordScreen({ navigation }) {
   };
 
   return (
-    <LinearGradient colors={['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={{ flex: 1 }}>
+    <LinearGradient colors={isDarkMode ? ['#081E2D', '#05141E', '#030A0F'] : ['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}

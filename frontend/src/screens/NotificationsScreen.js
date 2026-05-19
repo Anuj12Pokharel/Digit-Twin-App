@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const BLUE = '#2563EB';
+import { useTheme } from '../context/ThemeContext';
 
 export default function NotificationsScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [settings, setSettings] = useState({
     notifications: true,
     sound: false,
@@ -19,25 +19,25 @@ export default function NotificationsScreen({ navigation }) {
   const toggle = (key) => setSettings(s => ({ ...s, [key]: !s[key] }));
 
   const ToggleItem = ({ label, valueKey }) => (
-    <View style={styles.itemCard}>
-      <Text style={styles.itemLabel}>{label}</Text>
+    <View style={[styles.itemCard, { backgroundColor: theme.card }]}>
+      <Text style={[styles.itemLabel, { color: theme.text }]}>{label}</Text>
       <Switch
         value={settings[valueKey]}
         onValueChange={() => toggle(valueKey)}
-        trackColor={{ false: '#E2E8F0', true: BLUE }}
+        trackColor={{ false: isDarkMode ? '#1E293B' : '#E2E8F0', true: theme.primary }}
         thumbColor="#fff"
       />
     </View>
   );
 
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Notifications</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Notifications</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -54,8 +54,8 @@ export default function NotificationsScreen({ navigation }) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.saveBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.saveBtnText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Save Changes</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -79,6 +79,6 @@ const styles = StyleSheet.create({
   itemLabel: { fontSize: 15, color: '#1E293B', fontWeight: '500' },
 
   footer: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 10 },
-  saveBtn: { height: 56, backgroundColor: BLUE, borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: BLUE, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+  saveBtn: { height: 56, backgroundColor: '#2563EB', borderRadius: 28, justifyContent: 'center', alignItems: 'center', shadowColor: '#2563EB', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

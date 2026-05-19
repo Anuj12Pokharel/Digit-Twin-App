@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
 
 const BLUE = '#2563EB';
 
@@ -63,6 +64,7 @@ const COUNTRIES = [
 
 // ── Country Picker Modal ───────────────────────────────────────────────────────
 function CountryPickerModal({ visible, onSelect, onClose }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [search, setSearch] = useState('');
   const filtered = COUNTRIES.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -71,19 +73,19 @@ function CountryPickerModal({ visible, onSelect, onClose }) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <View style={modal.overlay}>
-        <View style={modal.sheet}>
+      <View style={[modal.overlay, { backgroundColor: theme.modalOverlay }]}>
+        <View style={[modal.sheet, { backgroundColor: theme.card }]}>
           <View style={modal.header}>
-            <Text style={modal.title}>Select Country</Text>
-            <TouchableOpacity onPress={onClose} style={modal.closeBtn}>
-              <Text style={modal.closeText}>✕</Text>
+            <Text style={[modal.title, { color: theme.text }]}>Select Country</Text>
+            <TouchableOpacity onPress={onClose} style={[modal.closeBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#F1F5F9' }]}>
+              <Text style={[modal.closeText, { color: theme.textSecondary }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={modal.searchWrap}>
+          <View style={[modal.searchWrap, { backgroundColor: theme.inputBg, borderColor: theme.border }]}>
             <Text style={modal.searchIcon}>🔍</Text>
             <TextInput
-              style={modal.searchInput}
+              style={[modal.searchInput, { color: theme.text }]}
               placeholder="Search country or code..."
               placeholderTextColor="#A0AABF"
               value={search}
@@ -101,11 +103,11 @@ function CountryPickerModal({ visible, onSelect, onClose }) {
                 activeOpacity={0.7}
               >
                 <Text style={modal.itemFlag}>{item.flag}</Text>
-                <Text style={modal.itemName}>{item.name}</Text>
-                <Text style={modal.itemCode}>{item.code}</Text>
+                <Text style={[modal.itemName, { color: theme.text }]}>{item.name}</Text>
+                <Text style={[modal.itemCode, { color: theme.textSecondary }]}>{item.code}</Text>
               </TouchableOpacity>
             )}
-            ItemSeparatorComponent={() => <View style={modal.separator} />}
+            ItemSeparatorComponent={() => <View style={[modal.separator, { backgroundColor: theme.border }]} />}
             showsVerticalScrollIndicator={false}
           />
         </View>
@@ -116,6 +118,7 @@ function CountryPickerModal({ visible, onSelect, onClose }) {
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function EditProfileScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [user, setUser] = useState({ full_name: '', email: '' });
   const [phone, setPhone] = useState('308.555.0121');
   const [country, setCountry] = useState(COUNTRIES[0]); // default USA
@@ -186,14 +189,14 @@ export default function EditProfileScreen({ navigation }) {
   const avatarUri = user?.avatar_url || null;
 
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Edit Profile</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Profile</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -206,26 +209,26 @@ export default function EditProfileScreen({ navigation }) {
                 {avatarUri ? (
                   <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
                 ) : (
-                  <View style={styles.avatar}>
+                  <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
                     <Text style={styles.avatarText}>{initial}</Text>
                   </View>
                 )}
-                <View style={styles.avatarOverlay}>
+                <View style={[styles.avatarOverlay, { backgroundColor: theme.primary, borderColor: theme.card }]}>
                   {uploading
                     ? <ActivityIndicator size="small" color="#fff" />
                     : <Text style={styles.cameraIcon}>📷</Text>
                   }
                 </View>
               </TouchableOpacity>
-              <Text style={styles.changePhotoText}>Tap to change photo</Text>
+              <Text style={[styles.changePhotoText, { color: theme.primary }]}>Tap to change photo</Text>
             </View>
 
             {/* Full Name */}
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Full Name</Text>
-              <View style={styles.inputCard}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Full Name</Text>
+              <View style={[styles.inputCard, { backgroundColor: theme.card }]}>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: theme.text }]}
                   value={user.full_name}
                   onChangeText={v => setUser({ ...user, full_name: v })}
                   placeholder="Enter your full name"
@@ -236,10 +239,10 @@ export default function EditProfileScreen({ navigation }) {
 
             {/* Email (read-only) */}
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Email</Text>
-              <View style={[styles.inputCard, styles.inputCardDisabled]}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Email</Text>
+              <View style={[styles.inputCard, { backgroundColor: theme.inputBgDisabled }]}>
                 <TextInput
-                  style={[styles.input, { color: '#94A3B8' }]}
+                  style={[styles.input, { color: theme.textSecondary }]}
                   value={user.email}
                   editable={false}
                 />
@@ -249,8 +252,8 @@ export default function EditProfileScreen({ navigation }) {
 
             {/* Phone Number with Country Picker */}
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Phone Number</Text>
-              <View style={[styles.inputCard, { flexDirection: 'row', alignItems: 'center' }]}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Phone Number</Text>
+              <View style={[styles.inputCard, { backgroundColor: theme.card, flexDirection: 'row', alignItems: 'center' }]}>
                 {/* Country Flag + Code Button */}
                 <TouchableOpacity
                   style={styles.countryBtn}
@@ -258,12 +261,12 @@ export default function EditProfileScreen({ navigation }) {
                   activeOpacity={0.7}
                 >
                   <Text style={{ fontSize: 20 }}>{country.flag}</Text>
-                  <Text style={styles.countryCode}>{country.code}</Text>
+                  <Text style={[styles.countryCode, { color: theme.text }]}>{country.code}</Text>
                   <Text style={styles.countryChevron}>▾</Text>
                 </TouchableOpacity>
-                <View style={styles.phoneDivider} />
+                <View style={[styles.phoneDivider, { backgroundColor: theme.border }]} />
                 <TextInput
-                  style={[styles.input, { flex: 1, paddingLeft: 12 }]}
+                  style={[styles.input, { flex: 1, paddingLeft: 12, color: theme.text }]}
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
@@ -275,22 +278,22 @@ export default function EditProfileScreen({ navigation }) {
 
             {/* Date of Birth with Calendar */}
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Date of Birth</Text>
               <TouchableOpacity
-                style={[styles.inputCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                style={[styles.inputCard, { backgroundColor: theme.card, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
                 onPress={() => setShowDatePicker(true)}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.input, { flex: 1, lineHeight: 56 }]}>
+                <Text style={[styles.input, { flex: 1, lineHeight: 56, color: theme.text }]}>
                   {formatDob(dob)}
                 </Text>
-                <Text style={{ fontSize: 20, color: BLUE }}>📅</Text>
+                <Text style={{ fontSize: 20, color: theme.primary }}>📅</Text>
               </TouchableOpacity>
             </View>
 
             {/* Date Picker — Android shows inline dialog, iOS shows inline */}
             {showDatePicker && (
-              <View style={styles.datePickerWrap}>
+              <View style={[styles.datePickerWrap, { backgroundColor: theme.card }]}>
                 <DateTimePicker
                   value={dob}
                   mode="date"
@@ -304,15 +307,15 @@ export default function EditProfileScreen({ navigation }) {
                     if (selectedDate) setDob(selectedDate);
                   }}
                   style={styles.datePicker}
-                  themeVariant="light"
-                  accentColor={BLUE}
+                  themeVariant={isDarkMode ? 'dark' : 'light'}
+                  accentColor={theme.primary}
                 />
                 {Platform.OS === 'ios' && (
                   <TouchableOpacity
-                    style={styles.dateConfirmBtn}
+                    style={[styles.dateConfirmBtn, { backgroundColor: theme.primary }]}
                     onPress={() => setShowDatePicker(false)}
                   >
-                    <Text style={styles.dateConfirmText}>Confirm</Text>
+                    <Text style={[styles.dateConfirmText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Confirm</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -323,13 +326,13 @@ export default function EditProfileScreen({ navigation }) {
           {/* Save Button */}
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.saveBtn, saving && { opacity: 0.7 }]}
+              style={[styles.saveBtn, { backgroundColor: theme.primary, shadowColor: theme.primary }, saving && { opacity: 0.7 }]}
               onPress={handleSave}
               disabled={saving}
             >
               {saving
-                ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.saveBtnText}>Save Changes</Text>
+                ? <ActivityIndicator color={isDarkMode ? '#05141E' : '#fff'} />
+                : <Text style={[styles.saveBtnText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Save Changes</Text>
               }
             </TouchableOpacity>
           </View>

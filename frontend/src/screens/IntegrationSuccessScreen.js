@@ -3,10 +3,13 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomNavBar from '../components/BottomNavBar';
+import { useTheme } from '../context/ThemeContext';
 
 const BLUE = '#2563EB';
 
 export default function IntegrationSuccessScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
+
   const handleNav = (tab) => {
     if (tab === 'Home') navigation.navigate('Home');
     if (tab === 'Profile') navigation.navigate('Settings');
@@ -15,17 +18,17 @@ export default function IntegrationSuccessScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={theme.gradient} style={StyleSheet.absoluteFillObject} />
       
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>J</Text></View>
-            <Text style={styles.headerTitle}>UI Digit App</Text>
+            <View style={[styles.avatar, { backgroundColor: theme.primary }]}><Text style={[styles.avatarText, { color: isDarkMode ? '#05141E' : '#FFFFFF' }]}>J</Text></View>
+            <Text style={[styles.headerTitle, { color: theme.primary }]}>UI Digit App</Text>
           </View>
           <TouchableOpacity style={styles.headerSettings} onPress={() => navigation.navigate('Settings')}>
-            <Text style={styles.settingsIcon}>⚙️</Text>
+            <Text style={[styles.settingsIcon, { color: theme.primary }]}>⚙️</Text>
           </TouchableOpacity>
         </View>
 
@@ -40,31 +43,31 @@ export default function IntegrationSuccessScreen({ navigation }) {
             </View>
           </View>
 
-          <Text style={styles.pageTitle}>Successfully Connected</Text>
-          <Text style={styles.pageSubtitle}>
+          <Text style={[styles.pageTitle, { color: theme.text }]}>Successfully Connected</Text>
+          <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
             Your integration is now active. All data streams are synchronized and ready for use.
           </Text>
 
           {/* System Status Card */}
-          <View style={styles.statusCard}>
-            <View style={styles.statusIconWrap}>
+          <View style={[styles.statusCard, { backgroundColor: theme.card }]}>
+            <View style={[styles.statusIconWrap, { backgroundColor: isDarkMode ? '#030A0F' : '#FFFFFF' }]}>
               <Text style={styles.statusSyncIcon}>↻</Text>
             </View>
             <View style={styles.statusTextGroup}>
-              <Text style={styles.statusLabel}>SYSTEM STATUS</Text>
+              <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>SYSTEM STATUS</Text>
               <View style={styles.statusLiveRow}>
                 <View style={styles.liveDot} />
-                <Text style={styles.liveText}>Live connection active</Text>
+                <Text style={[styles.liveText, { color: theme.text }]}>Live connection active</Text>
               </View>
             </View>
           </View>
 
-          <TouchableOpacity style={styles.continueBtn} onPress={() => navigation.navigate('IntegrationsHub')}>
-            <Text style={styles.continueBtnText}>Continue</Text>
+          <TouchableOpacity style={[styles.continueBtn, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={() => navigation.navigate('IntegrationsHub')}>
+            <Text style={[styles.continueBtnText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Continue</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.detailsLink} onPress={() => navigation.goBack()}>
-            <Text style={styles.detailsLinkText}>View Integration Details</Text>
+            <Text style={[styles.detailsLinkText, { color: theme.textSecondary }]}>View Integration Details</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>

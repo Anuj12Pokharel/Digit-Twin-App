@@ -6,7 +6,11 @@ import BottomNavBar from '../components/BottomNavBar';
 
 const BLUE = '#2563EB';
 
+import { useTheme } from '../context/ThemeContext';
+
 export default function IntegrationDetailScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
+
   const handleNav = (tab) => {
     if (tab === 'Home') navigation.navigate('Home');
     if (tab === 'Profile') navigation.navigate('Settings');
@@ -15,84 +19,84 @@ export default function IntegrationDetailScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={theme.gradient} style={StyleSheet.absoluteFillObject} />
       
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Integrations</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Integrations</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           {/* Logo Section */}
           <View style={styles.logoSection}>
-            <View style={styles.logoWrap}>
-              <Text style={styles.slackText}>slack</Text>
-              <View style={styles.syncBadge}>
-                <Text style={styles.syncIcon}>↻</Text>
+            <View style={[styles.logoWrap, { backgroundColor: theme.card }]}>
+              <Text style={[styles.slackText, { color: theme.text }]}>slack</Text>
+              <View style={[styles.syncBadge, { backgroundColor: theme.primary, borderColor: theme.gradient[0] }]}>
+                <Text style={[styles.syncIcon, { color: isDarkMode ? '#05141E' : '#FFFFFF' }]}>↻</Text>
               </View>
             </View>
-            <Text style={styles.pageTitle}>Slack</Text>
-            <Text style={styles.pageSubtitle}>
+            <Text style={[styles.pageTitle, { color: theme.text }]}>Slack</Text>
+            <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
               Connect your workspace to automate status updates and sync UI Digit notifications directly to channels.
             </Text>
           </View>
 
           {/* Connect Card */}
-          <View style={styles.connectCard}>
-            <Text style={styles.statusLabel}>CURRENT STATUS: NOT CONNECTED</Text>
+          <View style={[styles.connectCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>CURRENT STATUS: NOT CONNECTED</Text>
             <TouchableOpacity 
-              style={styles.connectBtn} 
+              style={[styles.connectBtn, { backgroundColor: theme.primary }]} 
               onPress={() => navigation.navigate('IntegrationSuccess')}
             >
-              <Text style={styles.connectBtnText}>Connect Slack</Text>
+              <Text style={[styles.connectBtnText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Connect Slack</Text>
             </TouchableOpacity>
             <Text style={styles.disclaimer}>Requires Admin access to your Slack workspace.</Text>
           </View>
 
           {/* How it works */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>How it works</Text>
+          <View style={[styles.sectionCard, { backgroundColor: theme.card }]}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>How it works</Text>
             
             <View style={styles.featureRow}>
-              <View style={[styles.featureIconWrap, {backgroundColor: '#DCFCE7'}]}>
+              <View style={[styles.featureIconWrap, {backgroundColor: isDarkMode ? 'rgba(34,197,94,0.1)' : '#DCFCE7'}]}>
                 <Text style={styles.featureIcon}>🔔</Text>
               </View>
               <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Instant Notifications</Text>
-                <Text style={styles.featureDesc}>Get pings for critical app changes and deployment statuses directly in Slack.</Text>
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Instant Notifications</Text>
+                <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>Get pings for critical app changes and deployment statuses directly in Slack.</Text>
               </View>
             </View>
 
             <View style={styles.featureRow}>
-              <View style={[styles.featureIconWrap, {backgroundColor: '#DBEAFE'}]}>
+              <View style={[styles.featureIconWrap, {backgroundColor: isDarkMode ? 'rgba(37,99,235,0.1)' : '#DBEAFE'}]}>
                 <Text style={styles.featureIcon}>⌘</Text>
               </View>
               <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>Slash Commands</Text>
-                <Text style={styles.featureDesc}>Query your UI Digit dashboard analytics using /digit-status inside any channel.</Text>
+                <Text style={[styles.featureTitle, { color: theme.text }]}>Slash Commands</Text>
+                <Text style={[styles.featureDesc, { color: theme.textSecondary }]}>Query your UI Digit dashboard analytics using /digit-status inside any channel.</Text>
               </View>
             </View>
           </View>
 
           {/* Permissions */}
-          <View style={styles.sectionCard}>
+          <View style={[styles.sectionCard, { backgroundColor: theme.card }]}>
             <View style={styles.permHeader}>
-              <Text style={styles.sectionTitle}>Permissions</Text>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Permissions</Text>
               <View style={styles.securedBadge}>
                 <Text style={styles.securedText}>SECURED</Text>
               </View>
             </View>
 
             {['Read public channels', 'Post messages to channels', 'View member profiles'].map((perm, idx) => (
-              <View key={idx} style={styles.permRow}>
+              <View key={idx} style={[styles.permRow, { backgroundColor: isDarkMode ? '#030A0F' : '#FFFFFF' }]}>
                 <View style={styles.permLeft}>
                   <Text style={styles.permIcon}>👁️</Text>
-                  <Text style={styles.permText}>{perm}</Text>
+                  <Text style={[styles.permText, { color: theme.text }]}>{perm}</Text>
                 </View>
                 <View style={styles.checkWrap}><Text style={styles.checkIcon}>✓</Text></View>
               </View>
@@ -104,7 +108,7 @@ export default function IntegrationDetailScreen({ navigation }) {
           </View>
 
           <TouchableOpacity style={styles.docsLink}>
-            <Text style={styles.docsLinkText}>❓ Read full integration documentation</Text>
+            <Text style={[styles.docsLinkText, { color: theme.primary }]}>❓ Read full integration documentation</Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>

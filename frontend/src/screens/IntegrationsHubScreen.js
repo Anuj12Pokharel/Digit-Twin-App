@@ -5,9 +5,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import BottomNavBar from '../components/BottomNavBar';
 import { useFocusEffect } from '@react-navigation/native';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
 
 const BLUE = '#2563EB';
-
 const TOOLS_CONFIG = [
   { id: 'jira', name: 'Jira', logo: 'J', db_field: 'jira_connected' },
   { id: 'slack', name: 'Slack', logo: 'S', db_field: 'slack_connected' },
@@ -16,6 +16,7 @@ const TOOLS_CONFIG = [
 ];
 
 export default function IntegrationsHubScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [user, setUser] = useState(null);
   const [tools, setTools] = useState([]);
 
@@ -94,25 +95,25 @@ export default function IntegrationsHubScreen({ navigation }) {
   };
 
   const ToolCard = ({ tool }) => (
-    <View style={styles.toolCard}>
+    <View style={[styles.toolCard, { backgroundColor: theme.card }]}>
       <View style={styles.toolLeft}>
-        <View style={styles.logoWrap}>
-          <Text style={styles.logoText}>{tool.logo}</Text>
+        <View style={[styles.logoWrap, { backgroundColor: isDarkMode ? '#030A0F' : '#F1F5F9' }]}>
+          <Text style={[styles.logoText, { color: theme.text }]}>{tool.logo}</Text>
         </View>
         <View>
-          <Text style={styles.toolName}>{tool.name}</Text>
-          <View style={[styles.statusBadge, tool.connected ? styles.statusBadgeConnected : styles.statusBadgeNot]}>
-            <Text style={[styles.statusText, tool.connected ? styles.statusTextConnected : styles.statusTextNot]}>
+          <Text style={[styles.toolName, { color: theme.text }]}>{tool.name}</Text>
+          <View style={[styles.statusBadge, tool.connected ? styles.statusBadgeConnected : { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' }]}>
+            <Text style={[styles.statusText, tool.connected ? styles.statusTextConnected : { color: theme.textSecondary }]}>
               {tool.connected ? 'CONNECTED' : 'NOT CONNECTED'}
             </Text>
           </View>
         </View>
       </View>
       <TouchableOpacity 
-        style={[styles.actionBtn, tool.connected ? styles.actionBtnManage : styles.actionBtnConnect]}
+        style={[styles.actionBtn, tool.connected ? { backgroundColor: isDarkMode ? '#1E293B' : '#E2E8F0' } : { backgroundColor: theme.primary }]}
         onPress={() => handleToolAction(tool)}
       >
-        <Text style={[styles.actionBtnText, tool.connected ? styles.actionBtnTextManage : styles.actionBtnTextConnect]}>
+        <Text style={[styles.actionBtnText, tool.connected ? { color: theme.text } : { color: isDarkMode ? '#05141E' : '#FFFFFF' }]}>
           {tool.connected ? 'Manage' : 'Connect'}
         </Text>
       </TouchableOpacity>
@@ -121,7 +122,7 @@ export default function IntegrationsHubScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={theme.gradient} style={StyleSheet.absoluteFillObject} />
       
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Header */}
@@ -134,21 +135,21 @@ export default function IntegrationsHubScreen({ navigation }) {
                   style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}
                 />
               ) : (
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{initial}</Text>
+                <View style={[styles.avatar, { backgroundColor: theme.primary }]}>
+                  <Text style={[styles.avatarText, { color: isDarkMode ? '#05141E' : '#FFFFFF' }]}>{initial}</Text>
                 </View>
               )}
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Integrations</Text>
+            <Text style={[styles.headerTitle, { color: theme.primary }]}>Integrations</Text>
           </View>
           <TouchableOpacity style={styles.headerSettings} onPress={() => navigation.navigate('Settings')}>
-            <Text style={styles.settingsIcon}>⚙️</Text>
+            <Text style={[styles.settingsIcon, { color: theme.primary }]}>⚙️</Text>
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.pageTitle}>Connect Your Tools</Text>
-          <Text style={styles.pageSubtitle}>
+          <Text style={[styles.pageTitle, { color: theme.text }]}>Connect Your Tools</Text>
+          <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>
             Streamline your workflow by syncing your favorite productivity tools directly with your dashboard.
           </Text>
 
@@ -157,11 +158,11 @@ export default function IntegrationsHubScreen({ navigation }) {
           </View>
 
           {/* Build Your Own */}
-          <LinearGradient colors={['#E0F2FE', '#BAE6FD']} style={styles.buildCard} start={{x: 0, y: 0}} end={{x: 1, y: 1}}>
-            <Text style={styles.buildTitle}>Build Your Own{'\n'}Integration</Text>
-            <Text style={styles.buildSub}>Access our developer API to create custom tools for your team.</Text>
+          <LinearGradient colors={isDarkMode ? ['#081E2D', '#0A2D3F'] : ['#E0F2FE', '#BAE6FD']} style={styles.buildCard} start={{x: 0, y: 0}} end={{x: 1, y: 1}}>
+            <Text style={[styles.buildTitle, { color: theme.primary }]}>Build Your Own{'\n'}Integration</Text>
+            <Text style={[styles.buildSub, { color: theme.textSecondary }]}>Access our developer API to create custom tools for your team.</Text>
             <TouchableOpacity style={styles.docsLink}>
-              <Text style={styles.docsLinkText}>View API Docs  →</Text>
+              <Text style={[styles.docsLinkText, { color: theme.primary }]}>View API Docs  →</Text>
             </TouchableOpacity>
           </LinearGradient>
         </ScrollView>

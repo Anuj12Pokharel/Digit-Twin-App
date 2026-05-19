@@ -5,6 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const BLUE = '#2563EB';
 
+import { useTheme } from '../context/ThemeContext';
+
 const SUGGESTED = [
   { id: 'en-US', label: 'English (US)' },
   { id: 'en-UK', label: 'English (UK)' },
@@ -19,50 +21,51 @@ const OTHERS = [
 ];
 
 export default function LanguageScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [selected, setSelected] = useState('en-US');
 
   const RadioItem = ({ item }) => {
     const isActive = selected === item.id;
     return (
       <TouchableOpacity 
-        style={styles.itemCard} 
+        style={[styles.itemCard, { backgroundColor: theme.card }]} 
         onPress={() => setSelected(item.id)}
         activeOpacity={0.7}
       >
-        <Text style={styles.itemLabel}>{item.label}</Text>
-        <View style={[styles.radioOuter, isActive && styles.radioOuterActive]}>
-          {isActive && <View style={styles.radioInner} />}
+        <Text style={[styles.itemLabel, { color: theme.text }]}>{item.label}</Text>
+        <View style={[styles.radioOuter, { borderColor: theme.border }, isActive && { borderColor: theme.primary, backgroundColor: theme.primary }]}>
+          {isActive && <View style={[styles.radioInner, { backgroundColor: isDarkMode ? '#05141E' : '#FFFFFF' }]} />}
         </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <LinearGradient colors={['#F8FBFF', '#EBF4FF', '#D6EAFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
+          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Language</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Language</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.sectionTitle}>Suggested</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Suggested</Text>
           <View style={styles.listGroup}>
             {SUGGESTED.map(item => <RadioItem key={item.id} item={item} />)}
           </View>
 
-          <Text style={styles.sectionTitle}>Others</Text>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Others</Text>
           <View style={styles.listGroup}>
             {OTHERS.map(item => <RadioItem key={item.id} item={item} />)}
           </View>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.saveBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.primary, shadowColor: theme.primary }]} onPress={() => navigation.goBack()}>
+            <Text style={[styles.saveBtnText, { color: isDarkMode ? '#05141E' : '#fff' }]}>Save Changes</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
