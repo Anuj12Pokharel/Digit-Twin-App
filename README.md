@@ -80,10 +80,10 @@ Start the server:
 
 ```powershell
 # From the project root (NOT inside backend/)
-uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8003
 ```
 
-Interactive API docs → **http://localhost:8000/docs**
+Interactive API docs → **http://localhost:8003/docs**
 
 ---
 
@@ -98,10 +98,10 @@ Open `src/api/api.js` and set `API_BASE_URL`:
 
 ```js
 // For the web simulator (same machine)
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8003';
 
 // For a physical device on the same Wi-Fi
-const API_BASE_URL = 'http://192.168.X.X:8000';
+const API_BASE_URL = 'http://192.168.X.X:8003';
 ```
 
 Start the dev server:

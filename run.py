@@ -1,8 +1,8 @@
 """
 Entry point for running the Digit Twin backend.
 
-Usage (from the project root  c:\\Users\\hp\\Desktop\\anuj):
-    uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+Usage (from the project root  c:\Users\hp\Desktop\anuj):
+    uvicorn backend.main:app --reload --host 0.0.0.0 --port 8003
 """
 import os
 from dotenv import load_dotenv

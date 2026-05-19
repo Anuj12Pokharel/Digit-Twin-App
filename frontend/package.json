@@ -37,5 +37,8 @@
     "react-native-web": "^0.21.0",
     "react-native-webrtc": "^124.0.7"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "babel-preset-expo": "^55.0.21"
+  }
 }
