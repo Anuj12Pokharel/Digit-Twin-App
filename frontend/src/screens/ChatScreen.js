@@ -165,6 +165,8 @@ export default function ChatScreen({ route, navigation }) {
 
   const [showModePopup, setShowModePopup] = useState(false);
   const [suggestedMode, setSuggestedMode] = useState(null);
+  // null = Neutral, 'personal' = Personal ON, 'work' = Work ON
+  const [chatMode, setChatMode] = useState(mode === 'work' ? 'work' : mode === 'personal' ? 'personal' : null);
 
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -223,24 +225,32 @@ export default function ChatScreen({ route, navigation }) {
     setShowModePopup(false);
   };
 
+  const toggleChatMode = async (tapped) => {
+    const next = chatMode === tapped ? null : tapped;
+    setChatMode(next);
+    try {
+      await api.patch('/users/me', { current_mode: next || 'personal' });
+    } catch {}
+  };
+
   const sendText = useCallback((text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    
     processSendText(trimmed);
-  }, [mode]);
+  }, [chatMode]);
 
   const processSendText = async (trimmed) => {
     setInput('');
     setShowActions(false);
 
+    const effectiveMode = chatMode || 'neutral';
     const userMsg = { id: Date.now().toString(), role: 'user', type: 'text', content: trimmed };
     setMessages(prev => [...prev, userMsg]);
     scrollToEnd();
     setLoading(true);
 
     try {
-      const res = await api.post('/chat-completions', { query: trimmed });
+      const res = await api.post('/chat-completions', { query: trimmed, mode: effectiveMode });
       let aiText = res.data.response;
       
       const switchMatch = aiText.match(/\[SUGGEST_MODE_SWITCH:\s*(work|personal)\s*\]/i);
@@ -405,6 +415,67 @@ export default function ChatScreen({ route, navigation }) {
             style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
           >
             <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>⋮</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Mode Toggle Bar ── */}
+        <View style={styles.modeBar}>
+          {/* Personal Toggle */}
+          <TouchableOpacity
+            style={[
+              styles.modeToggleBtn,
+              chatMode === 'personal' && styles.modeToggleBtnPersonalActive,
+              isDarkMode && chatMode !== 'personal' && styles.modeToggleBtnDark,
+            ]}
+            onPress={() => toggleChatMode('personal')}
+            activeOpacity={0.8}
+          >
+            <View style={[
+              styles.togglePill,
+              chatMode === 'personal' ? styles.togglePillOn : styles.togglePillOff,
+            ]}>
+              <View style={[
+                styles.toggleKnob,
+                chatMode === 'personal' ? styles.toggleKnobOn : styles.toggleKnobOff,
+              ]} />
+            </View>
+            <Text style={[
+              styles.modeToggleLabel,
+              chatMode === 'personal' ? styles.modeToggleLabelPersonalActive : { color: isDarkMode ? '#94A3B8' : '#64748B' },
+            ]}>🌿 Personal</Text>
+          </TouchableOpacity>
+
+          {/* Neutral indicator */}
+          <View style={styles.neutralChip}>
+            <View style={[styles.neutralDot, chatMode === null && styles.neutralDotActive]} />
+            <Text style={[styles.neutralLabel, { color: isDarkMode ? '#64748B' : '#94A3B8' }]}>
+              {chatMode === null ? 'Neutral' : chatMode === 'personal' ? 'Personal' : 'Work'}
+            </Text>
+          </View>
+
+          {/* Work Toggle */}
+          <TouchableOpacity
+            style={[
+              styles.modeToggleBtn,
+              chatMode === 'work' && styles.modeToggleBtnWorkActive,
+              isDarkMode && chatMode !== 'work' && styles.modeToggleBtnDark,
+            ]}
+            onPress={() => toggleChatMode('work')}
+            activeOpacity={0.8}
+          >
+            <Text style={[
+              styles.modeToggleLabel,
+              chatMode === 'work' ? styles.modeToggleLabelWorkActive : { color: isDarkMode ? '#94A3B8' : '#64748B' },
+            ]}>💼 Work</Text>
+            <View style={[
+              styles.togglePill,
+              chatMode === 'work' ? styles.togglePillWorkOn : styles.togglePillOff,
+            ]}>
+              <View style={[
+                styles.toggleKnob,
+                chatMode === 'work' ? styles.toggleKnobOn : styles.toggleKnobOff,
+              ]} />
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -741,4 +812,107 @@ const styles = StyleSheet.create({
   popupBtnNoText: { fontSize: 15, fontWeight: '600', color: '#475569' },
   popupBtnYes: { flex: 1, height: 48, borderRadius: 24, backgroundColor: BLUE, justifyContent: 'center', alignItems: 'center' },
   popupBtnYesText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
+
+  // ── Mode Toggle Bar ──
+  modeBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  modeToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  modeToggleBtnDark: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  modeToggleBtnPersonalActive: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.4)',
+  },
+  modeToggleBtnWorkActive: {
+    backgroundColor: 'rgba(99,102,241,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(99,102,241,0.4)',
+  },
+  modeToggleLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modeToggleLabelPersonalActive: {
+    color: '#10B981',
+  },
+  modeToggleLabelWorkActive: {
+    color: '#818CF8',
+  },
+  // Toggle pill (the switch track)
+  togglePill: {
+    width: 34,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  togglePillOn: {
+    backgroundColor: '#10B981',
+  },
+  togglePillWorkOn: {
+    backgroundColor: '#6366F1',
+  },
+  togglePillOff: {
+    backgroundColor: 'rgba(148,163,184,0.3)',
+  },
+  // Toggle knob (the circle)
+  toggleKnob: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  toggleKnobOn: {
+    alignSelf: 'flex-end',
+  },
+  toggleKnobOff: {
+    alignSelf: 'flex-start',
+  },
+  // Neutral chip in centre
+  neutralChip: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  neutralDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(148,163,184,0.3)',
+  },
+  neutralDotActive: {
+    backgroundColor: '#F59E0B',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  neutralLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
 });
