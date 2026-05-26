@@ -1,7 +1,11 @@
 import os
+import logging
 import warnings
 from pathlib import Path
 from dotenv import load_dotenv
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Suppress duckduckgo_search renaming warning which resets simplefilter internally
 _orig_warn = warnings.warn
@@ -174,7 +178,7 @@ def forgot_password(
     db.commit()
 
     # TODO: replace with real email delivery
-    print(f"[DEV] OTP for {req.email}: {code}")
+    logger.info("[DEV] OTP for %s: %s", req.email, code)
 
     return {
         "detail": "OTP sent to your email.",
@@ -485,7 +489,7 @@ async def chat_completions(
                         context_text += f"Title: {r.get('title')}\nSnippet: {r.get('body')}\nLink: {r.get('href')}\n\n"
                     context_text += "--------------------------------\n\n"
         except Exception as e:
-            print("Web search failed:", e)
+            logger.error("Web search failed: %s", e)
 
         instr += context_text
         instr += (
@@ -545,7 +549,7 @@ async def chat_completions(
             messages.append(message)
             
             registry = ToolRegistry(db, current_user)
-            print(f"[CHAT] OpenAI requested tool calls: {[tc['function']['name'] for tc in tool_calls]}")
+            logger.info("[CHAT] OpenAI requested tool calls: %s", [tc['function']['name'] for tc in tool_calls])
             
             for tool_call in tool_calls:
                 function_name = tool_call["function"]["name"]
@@ -555,7 +559,7 @@ async def chat_completions(
                 except Exception:
                     function_args = {}
                 
-                print(f"[CHAT] Executing tool {function_name} with args {function_args}")
+                logger.info("[CHAT] Executing tool %s with args %s", function_name, function_args)
                 tool_result = None
                 try:
                     if function_name == "get_daily_battle_plan":
@@ -585,7 +589,7 @@ async def chat_completions(
                 except Exception as e:
                     tool_result = {"status": "error", "message": str(e)}
                 
-                print(f"[CHAT] Tool {function_name} returned result: {tool_result}")
+                logger.info("[CHAT] Tool %s returned result: %s", function_name, tool_result)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call["id"],
