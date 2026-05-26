@@ -1,7 +1,0 @@
-Python: 3.12.6 (tags/v3.12.6:a4a2d2b, Sep  6 2024, 20:11:23) [MSC v.1940 64 bit (AMD64)]
-CWD: C:\Users\hp\Desktop\anuj
-OK: backend.tools - step1: jira import
-OK: backend.tools - step2: google import
-OK: backend.tools - step3: knowledge import
-OK: backend.tools
-OK: backend.main
