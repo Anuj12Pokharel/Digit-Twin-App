@@ -11,11 +11,14 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
 
+const { width, height } = Dimensions.get('window');
 const BLUE = '#2563EB';
 
 const TOOLBAR_ITEMS = [
@@ -29,6 +32,7 @@ const TOOLBAR_ITEMS = [
 
 export default function DocumentEditor({ route, navigation }) {
   const { document } = route.params;
+  const { colors: theme, isDarkMode } = useTheme();
 
   const [title, setTitle] = useState(document.title || '');
   const [content, setContent] = useState(document.content || '');
@@ -39,9 +43,37 @@ export default function DocumentEditor({ route, navigation }) {
   const inputRef = useRef(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
+  const stars = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * (height * 0.75),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-  }, []);
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
 
   const handleContentChange = (text) => {
     setContent(text);
@@ -81,7 +113,30 @@ export default function DocumentEditor({ route, navigation }) {
   };
 
   return (
-    <LinearGradient colors={['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={{ flex: 1 }}>
+    <LinearGradient colors={theme.gradient} style={{ flex: 1 }}>
+      {/* Absolute twinkling star backdrop for high-end dark mode */}
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -90,23 +145,35 @@ export default function DocumentEditor({ route, navigation }) {
           <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
 
             {/* ── Header ── */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]}>
               <TouchableOpacity
                 onPress={() => navigation.goBack()}
-                style={styles.headerBtn}
+                style={[
+                  styles.headerBtn,
+                  {
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 6,
+                    elevation: 3,
+                  },
+                ]}
                 activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.headerBtnText}>← Back</Text>
+                <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
               </TouchableOpacity>
 
-              <Text style={styles.headerTitle} numberOfLines={1}>
+              <Text style={[styles.headerTitle, { color: isDarkMode ? '#FFFFFF' : '#1E293B' }]} numberOfLines={1}>
                 {title || 'Untitled'}
               </Text>
 
               <TouchableOpacity
                 onPress={handleSave}
                 disabled={loading}
-                style={[styles.saveBtn, saved && styles.saveBtnSuccess]}
+                style={[styles.saveBtn, { backgroundColor: theme.primary }, saved && styles.saveBtnSuccess]}
                 activeOpacity={0.85}
               >
                 {loading
@@ -117,13 +184,13 @@ export default function DocumentEditor({ route, navigation }) {
             </View>
 
             {/* ── Title field ── */}
-            <View style={styles.titleSection}>
+            <View style={[styles.titleSection, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.45)', borderBottomColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }]}>
               <TextInput
-                style={styles.titleInput}
+                style={[styles.titleInput, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Document title…"
-                placeholderTextColor="#A0AABF"
+                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.35)' : '#A0AABF'}
                 returnKeyType="next"
                 onSubmitEditing={() => inputRef.current?.focus()}
               />
@@ -138,11 +205,11 @@ export default function DocumentEditor({ route, navigation }) {
             >
               <TextInput
                 ref={inputRef}
-                style={styles.contentInput}
+                style={[styles.contentInput, { color: isDarkMode ? '#FFFFFF' : '#1E293B' }]}
                 value={content}
                 onChangeText={handleContentChange}
                 placeholder={'Start writing in Markdown…\n\n**Bold**, _italic_, `code`\n\n# Heading\n- List item'}
-                placeholderTextColor="#A0AABF"
+                placeholderTextColor={isDarkMode ? 'rgba(255,255,255,0.35)' : '#A0AABF'}
                 multiline
                 textAlignVertical="top"
                 scrollEnabled={false}
@@ -150,23 +217,23 @@ export default function DocumentEditor({ route, navigation }) {
             </ScrollView>
 
             {/* ── Status bar ── */}
-            <View style={styles.statusBar}>
-              <Text style={styles.statusText}>{charCount} characters</Text>
-              <Text style={styles.statusText}>v{document.version || 1}</Text>
-              <Text style={styles.statusText}>Markdown</Text>
+            <View style={[styles.statusBar, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.4)', borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }]}>
+              <Text style={[styles.statusText, { color: isDarkMode ? '#8FA0AF' : '#94A3B8' }]}>{charCount} characters</Text>
+              <Text style={[styles.statusText, { color: isDarkMode ? '#8FA0AF' : '#94A3B8' }]}>v{document.version || 1}</Text>
+              <Text style={[styles.statusText, { color: isDarkMode ? '#8FA0AF' : '#94A3B8' }]}>Markdown</Text>
             </View>
 
             {/* ── Markdown toolbar ── */}
-            <View style={styles.toolbar}>
+            <View style={[styles.toolbar, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.85)', borderTopColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.07)' }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarScroll}>
                 {TOOLBAR_ITEMS.map((item) => (
                   <TouchableOpacity
                     key={item.label}
-                    style={styles.toolBtn}
+                    style={[styles.toolBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : '#F1F5F9', borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#E2E8F0' }]}
                     onPress={() => insertMarkdown(item)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.toolBtnText, item.style]}>{item.label}</Text>
+                    <Text style={[styles.toolBtnText, { color: isDarkMode ? '#FFFFFF' : '#1E293B' }, item.style]}>{item.label}</Text>
                   </TouchableOpacity>
                 ))}
 
@@ -192,6 +259,28 @@ export default function DocumentEditor({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
+  star: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    top: -50,
+    left: -50,
+    opacity: 0.8,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    bottom: -50,
+    right: -50,
+    opacity: 0.8,
+  },
   // Header
   header: {
     flexDirection: 'row',
@@ -203,12 +292,14 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   headerBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
   },
-  headerBtnText: { color: BLUE, fontWeight: '700', fontSize: 14 },
+  headerBtnText: { color: '#0A0A0A', fontWeight: '800', fontSize: 26 },
   headerTitle: {
     flex: 1,
     textAlign: 'center',

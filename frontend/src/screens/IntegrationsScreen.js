@@ -10,11 +10,15 @@ import {
   StyleSheet,
   Animated,
   Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../api/api';
+import { useTheme } from '../context/ThemeContext';
+
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const BLUE = '#2563EB';
 const BLUE_LIGHT = '#EBF4FF';
@@ -52,13 +56,45 @@ function StatusPill({ connected }) {
   );
 }
 
-export default function SettingsScreen({ navigation }) {
+export default function IntegrationsScreen({ navigation }) {
+  const { colors: theme, isDarkMode } = useTheme();
   const [user, setUser] = useState(null);
   const [jira, setJira] = useState({ domain: '', email: '', token: '', isConnected: false });
   const [google, setGoogle] = useState({ isConnected: false });
   const [loading, setLoading] = useState(false);
   const [jiraExpanded, setJiraExpanded] = useState(false);
   const [initializing, setInitializing] = useState(true);
+
+  const stars = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * SCREEN_W,
+      y: Math.random() * (SCREEN_H * 0.75),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
+  useEffect(() => {
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
 
   useEffect(() => {
     fetchStatus();
@@ -124,10 +160,10 @@ export default function SettingsScreen({ navigation }) {
 
   if (initializing) {
     return (
-      <LinearGradient colors={['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={styles.gradient}>
+      <LinearGradient colors={theme.gradient} style={styles.gradient}>
         <SafeAreaView style={styles.safeArea}>
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={BLUE} />
+            <ActivityIndicator size="large" color={theme.primary} />
           </View>
         </SafeAreaView>
       </LinearGradient>
@@ -135,14 +171,52 @@ export default function SettingsScreen({ navigation }) {
   }
 
   return (
-    <LinearGradient colors={['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={styles.gradient}>
+    <LinearGradient colors={theme.gradient} style={styles.gradient}>
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={styles.safeArea}>
         {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
-            <Text style={styles.backBtnText}>← Back</Text>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={[
+              styles.backBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 3,
+              },
+            ]}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.backBtnText, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>Settings</Text>
           <View style={{ width: 64 }} />
         </View>
 
@@ -307,6 +381,9 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safeArea: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  star: { position: 'absolute', backgroundColor: '#FFFFFF' },
+  ambientCircle1: { position: 'absolute', width: 250, height: 250, borderRadius: 125, top: -50, left: -50, opacity: 0.8 },
+  ambientCircle2: { position: 'absolute', width: 300, height: 300, borderRadius: 150, bottom: -50, right: -50, opacity: 0.8 },
 
   // Header
   header: {
@@ -317,12 +394,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   backBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
   },
-  backBtnText: { color: BLUE, fontWeight: '700', fontSize: 14 },
+  backBtnText: { color: '#0A0A0A', fontWeight: '800', fontSize: 26 },
   headerTitle: { fontSize: 17, fontWeight: '800', color: '#0F172A' },
 
   // Scroll
@@ -447,12 +526,16 @@ const styles = StyleSheet.create({
   signOutBtn: {
     height: 48,
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: '#EF4444',
+    backgroundColor: BLUE,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: BLUE,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  signOutText: { color: '#EF4444', fontSize: 15, fontWeight: '700' },
+  signOutText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
   // Version
   versionText: {

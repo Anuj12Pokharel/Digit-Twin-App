@@ -23,6 +23,8 @@ class User(Base):
     full_name = Column(String, nullable=True)
     google_id = Column(String, unique=True, index=True, nullable=True)
     is_active = Column(Boolean, default=True)
+    address = Column(String, nullable=True)
+    mobile_number = Column(String, nullable=True)
     
     current_mode = Column(String, default=DigitalTwinMode.PERSONAL.value)
     avatar_url = Column(String, nullable=True)

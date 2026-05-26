@@ -26,8 +26,12 @@ const BLUE_INDIGO = '#0A2D3F';
 export default function SignUpScreen({ navigation, onLoginSuccess }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -90,12 +94,16 @@ export default function SignUpScreen({ navigation, onLoginSuccess }) {
   }, []);
 
   const handleSignUp = async () => {
-    if (!fullName.trim() || !email.trim() || !password) {
+    if (!fullName.trim() || !email.trim() || !address.trim() || !password || !confirmPassword) {
       setError('Please fill in all fields.');
       return;
     }
     if (password.length < 6) {
       setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
     if (!agreedToTerms) {
@@ -109,6 +117,8 @@ export default function SignUpScreen({ navigation, onLoginSuccess }) {
         fullName: fullName.trim(),
         email: email.trim(),
         password,
+        address: address.trim(),
+        mobileNumber: mobileNumber.trim(),
       });
       await AsyncStorage.setItem('userToken', data.access_token);
       onLoginSuccess();
@@ -216,6 +226,38 @@ export default function SignUpScreen({ navigation, onLoginSuccess }) {
                   </View>
                 </View>
 
+                {/* Address */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Address</Text>
+                  <View style={styles.inputCard}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your address"
+                      placeholderTextColor="rgba(255, 255, 255, 0.35)"
+                      value={address}
+                      onChangeText={(v) => { setAddress(v); setError(''); }}
+                      autoCapitalize="words"
+                      returnKeyType="next"
+                    />
+                  </View>
+                </View>
+
+                {/* Mobile Number */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Mobile Number (Optional)</Text>
+                  <View style={styles.inputCard}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your mobile number"
+                      placeholderTextColor="rgba(255, 255, 255, 0.35)"
+                      value={mobileNumber}
+                      onChangeText={(v) => { setMobileNumber(v); setError(''); }}
+                      keyboardType="phone-pad"
+                      returnKeyType="next"
+                    />
+                  </View>
+                </View>
+
                 {/* Password */}
                 <View style={styles.fieldGroup}>
                   <Text style={styles.label}>Password</Text>
@@ -236,6 +278,30 @@ export default function SignUpScreen({ navigation, onLoginSuccess }) {
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                       <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '🙈'}</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Confirm Password */}
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.label}>Confirm Password</Text>
+                  <View style={styles.inputCard}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="Confirm your password"
+                      placeholderTextColor="rgba(255, 255, 255, 0.35)"
+                      value={confirmPassword}
+                      onChangeText={(v) => { setConfirmPassword(v); setError(''); }}
+                      secureTextEntry={!showConfirmPassword}
+                      returnKeyType="done"
+                      onSubmitEditing={handleSignUp}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                      style={styles.eyeButton}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <Text style={styles.eyeIcon}>{showConfirmPassword ? '👁️' : '🙈'}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>

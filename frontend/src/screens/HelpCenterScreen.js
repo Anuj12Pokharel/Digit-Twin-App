@@ -1,25 +1,61 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, LayoutAnimation, Platform, UIManager } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput, LayoutAnimation, Platform, UIManager, Animated, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '../context/ThemeContext';
+
+const { width, height } = Dimensions.get('window');
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 const FAQS = [
-  { q: 'How do I reset my password?', a: 'You can reset your password from the login screen by tapping "Forgot Password".' },
-  { q: 'How do I contact support?', a: 'You can reach our support team via the "Contact Us" option available in the app.' },
-  { q: 'How can I update my information?', a: 'Go to Profile settings to update your personal details and preferences.' },
-  { q: 'How do I report an issue?', a: 'Please shake your device to bring up the issue reporter or contact support directly.' },
-  { q: 'How do I manage notifications?', a: 'You can turn specific notifications on or off in the Notifications section of your Settings.' },
+  { q: 'What is Personal Mode and Work Mode?', a: 'Personal Mode activates your digital twin persona — it focuses on your hobbies, wellness, lifestyle, and private document knowledge base. Work Mode turns you into an executive office assistant, syncing with Jira and Google Calendar to manage tasks and meetings.' },
+  { q: 'How do I switch between Personal and Work Mode?', a: 'You can toggle modes directly inside the Chat screen using the toggle bar at the top. You can also say things like "switch to work mode" and the AI will suggest a mode change automatically.' },
+  { q: 'How does the AI chat work?', a: 'The chat uses OpenAI GPT-4o-mini with integrated tool-calling. In Work Mode, it queries Jira and Google Calendar. In Personal Mode, it searches your AI knowledge base and performs web searches to give you personalised, grounded answers.' },
+  { q: 'How do I connect Jira or Google Calendar?', a: 'Go to Settings → Integrations Hub. From there you can connect Jira (via API Token) or Google Calendar (via OAuth). Once connected, the AI in Work Mode can list tasks, create issues, and schedule meetings.' },
+  { q: 'What is the AI Brain / Knowledge Base?', a: 'The AI Brain is your personal RAG (Retrieval-Augmented Generation) knowledge store. You can upload documents or notes and the AI in Personal Mode will use those documents as context to answer your questions intelligently.' },
+  { q: 'How does Voice Mode work?', a: 'Tap the microphone button on the Chat screen to dictate messages. Long-press the mic to record a voice note. The realtime voice mode uses OpenAI Realtime API for live two-way conversation with your digital twin.' },
+  { q: 'How do I reset my password?', a: 'Tap "Forgot Password" on the login screen. You will receive a 6-digit OTP via email. After verifying, you can set a new password securely.' },
+  { q: 'How do I update my profile or avatar?', a: 'Go to Settings → Edit Profile. You can update your full name, address, and upload a profile photo directly from your device gallery.' },
 ];
 
 export default function HelpCenterScreen({ navigation }) {
   const { colors: theme, isDarkMode } = useTheme();
   const [expanded, setExpanded] = useState('How do I contact support?');
+
+  const stars = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * (height * 0.75),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
+  useEffect(() => {
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
 
   const toggleExpand = (q) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -28,10 +64,49 @@ export default function HelpCenterScreen({ navigation }) {
 
   return (
     <LinearGradient colors={theme.gradient} style={styles.gradient}>
+      {/* Absolute twinkling star backdrop for high-end dark mode */}
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
-          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+          <TouchableOpacity
+            style={[
+              styles.backBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 3,
+              },
+            ]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.backIcon, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Help Center</Text>
           <View style={{ width: 40 }} />
@@ -78,10 +153,32 @@ export default function HelpCenterScreen({ navigation }) {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
+  star: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    top: -50,
+    left: -50,
+    opacity: 0.8,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    bottom: -50,
+    right: -50,
+    opacity: 0.8,
+  },
   
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' },
-  backIcon: { fontSize: 18, color: '#0F172A' },
+  backBtn: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
+  backIcon: { fontSize: 26, fontWeight: '800' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
 
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', marginHorizontal: 20, height: 50, borderRadius: 25, paddingHorizontal: 16, marginBottom: 20, shadowColor: '#94A3B8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 },

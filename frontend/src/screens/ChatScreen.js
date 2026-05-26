@@ -17,6 +17,62 @@ const INDIGO = '#0A2D3F';
 const BLUE = '#2563EB';
 const BAR_COUNT = 28;
 
+// ── Typewriter Bubble Text Component with Stochastic Delay and Punctuation Pauses ──
+const TypewriterBubbleText = ({ text, style }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [cursorVisible, setCursorVisible] = useState(true);
+
+  useEffect(() => {
+    let index = 0;
+    let isMounted = true;
+    setDisplayedText('');
+    
+    const typeNextChar = () => {
+      if (!isMounted) return;
+      
+      setDisplayedText((prev) => {
+        if (index < text.length) {
+          const nextChar = text.charAt(index);
+          index++;
+          
+          // Stochastic keypress delay (10ms to 25ms) for swift chat bubble typing
+          let nextDelay = 10 + Math.random() * 15;
+          
+          // Syntactic punctuation pausing for natural breathing room
+          if (['.', '!', '?'].includes(nextChar)) {
+            nextDelay = 400; 
+          } else if ([',', ';', ':'].includes(nextChar)) {
+            nextDelay = 180;
+          }
+          
+          setTimeout(typeNextChar, nextDelay);
+          return prev + nextChar;
+        } else {
+          return prev;
+        }
+      });
+    };
+    
+    typeNextChar();
+
+    const cursorInterval = setInterval(() => {
+      if (isMounted) setCursorVisible((v) => !v);
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(cursorInterval);
+    };
+  }, [text]);
+
+  return (
+    <Text style={style}>
+      {displayedText}
+      <Text style={{ color: '#00F0FF', fontWeight: 'bold', opacity: cursorVisible ? 1 : 0 }}>▋</Text>
+    </Text>
+  );
+};
+
 // ── Animated waveform bars ────────────────────────────────────────────────────
 function WaveformBars({ active, color = CYAN, height = 56, barCount = BAR_COUNT }) {
   const anims = useRef(
@@ -153,8 +209,18 @@ export default function ChatScreen({ route, navigation }) {
   const { mode = 'personal', user } = route.params || {};
   const { isDarkMode, colors: theme } = useTheme();
 
+  const getInitialWelcomeMessage = (modeParam) => {
+    if (modeParam === 'work') {
+      return "I am your digital twin office assistant! In Work Mode, I integrate with Jira and Google Calendar. You can use this chat page to create and assign tasks, view your daily schedules, plan sprints, or ask me to draft professional responses. Let's optimize your productivity today!";
+    }
+    if (modeParam === 'neutral') {
+      return "I am your balanced digital twin! Neutral Mode is active when both specific modes are turned off, providing you with a steady default workspace. Use this chat page for daily lifestyle tracking, random general knowledge queries, or to ask me standard day-to-day questions.";
+    }
+    return "I am your personal digital twin replica! In Personal Mode, I focus on your hobbies, personal habits, and private files. You can use this chat page to brainstorm creative ideas, draft content, query your secure document knowledge base, or talk about your daily routines!";
+  };
+
   const [messages, setMessages] = useState([
-    { id: '0', role: 'assistant', type: 'text', content: `Hi! I'm your ${mode} AI twin. Ask me anything!` },
+    { id: '0', role: 'assistant', type: 'text', content: getInitialWelcomeMessage(mode) },
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -213,21 +279,38 @@ export default function ChatScreen({ route, navigation }) {
   })();
 
   const handleModeChange = async (newMode) => {
+    setChatMode(newMode === 'work' ? 'work' : newMode === 'personal' ? 'personal' : null);
+
+    // Append the typewriter introduction message in the next line!
+    const introText = getInitialWelcomeMessage(newMode);
+    setMessages(prev => [...prev, {
+      id: Date.now().toString() + 'intro',
+      role: 'assistant',
+      type: 'text',
+      content: introText,
+      isNewIntro: true
+    }]);
+
     try {
       await api.patch('/users/me', { current_mode: newMode });
     } catch {}
-    setMessages(prev => [...prev, {
-      id: Date.now().toString() + 'sys',
-      role: 'assistant',
-      type: 'text',
-      content: `🔄 Switched to ${newMode === 'work' ? 'Work' : 'Personal'} Mode.`
-    }]);
     setShowModePopup(false);
   };
 
   const toggleChatMode = async (tapped) => {
     const next = chatMode === tapped ? null : tapped;
     setChatMode(next);
+
+    // Append the typewriter introduction message in the next line!
+    const introText = getInitialWelcomeMessage(next || 'neutral');
+    setMessages(prev => [...prev, {
+      id: Date.now().toString() + 'intro',
+      role: 'assistant',
+      type: 'text',
+      content: introText,
+      isNewIntro: true
+    }]);
+
     try {
       await api.patch('/users/me', { current_mode: next || 'personal' });
     } catch {}
@@ -258,7 +341,7 @@ export default function ChatScreen({ route, navigation }) {
          const newMode = switchMatch[1].toLowerCase();
          aiText = aiText.replace(/\[SUGGEST_MODE_SWITCH:\s*(work|personal)\s*\]/i, '').trim();
          
-         if (newMode !== mode) {
+         if (newMode !== chatMode) {
              setSuggestedMode(newMode);
              setShowModePopup(true);
          }
@@ -359,9 +442,16 @@ export default function ChatScreen({ route, navigation }) {
               isDarkMode ? styles.bubbleAIDark : { backgroundColor: theme.card }
             ]}
           >
-            <Text style={[styles.bubbleText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>
-              {item.content}
-            </Text>
+            {item.id === '0' || item.isNewIntro ? (
+              <TypewriterBubbleText
+                text={item.content}
+                style={[styles.bubbleText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}
+              />
+            ) : (
+              <Text style={[styles.bubbleText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>
+                {item.content}
+              </Text>
+            )}
           </View>
         )}
         {!isUser && <Reactions isDarkMode={isDarkMode} />}
@@ -391,15 +481,34 @@ export default function ChatScreen({ route, navigation }) {
           ]}
         />
       ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
 
       <SafeAreaView style={styles.safe}>
         {/* ── Header ── */}
         <View style={[styles.header, isDarkMode && styles.headerDark]}>
           <TouchableOpacity
-            style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+            style={[
+              styles.headerBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 3,
+              },
+            ]}
             onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>←</Text>
+            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
           </TouchableOpacity>
           
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -412,9 +521,22 @@ export default function ChatScreen({ route, navigation }) {
           </View>
 
           <TouchableOpacity
-            style={[styles.headerBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]}
+            style={[
+              styles.headerBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 3,
+              },
+            ]}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : theme.text }]}>⋮</Text>
+            <Text style={[styles.headerBtnText, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>⋮</Text>
           </TouchableOpacity>
         </View>
 
@@ -668,12 +790,28 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: '#FFFFFF',
   },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -60,
+    right: -60,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    bottom: '25%',
+    left: -60,
+  },
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
   headerDark: { borderBottomColor: 'rgba(255,255,255,0.06)' },
-  headerBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' },
-  headerBtnText: { fontSize: 18, color: '#1E293B', fontWeight: '600' },
+  headerBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
+  headerBtnText: { fontSize: 24, fontWeight: '800' },
   headerTitle: { fontSize: 15, fontWeight: '700', color: '#0F172A' },
 
   // Date chip

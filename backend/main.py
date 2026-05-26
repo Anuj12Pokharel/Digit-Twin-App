@@ -1,6 +1,15 @@
 import os
+import warnings
 from pathlib import Path
 from dotenv import load_dotenv
+
+# Suppress duckduckgo_search renaming warning which resets simplefilter internally
+_orig_warn = warnings.warn
+def _patched_warn(message, category=None, stacklevel=1, source=None):
+    if "duckduckgo_search" in str(message) and "renamed" in str(message):
+        return
+    return _orig_warn(message, category, stacklevel, source)
+warnings.warn = _patched_warn
 
 # Load .env from the backend directory
 load_dotenv(Path(__file__).parent / ".env")
@@ -49,7 +58,9 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
         email=user.email,
         full_name=user.full_name,
         hashed_password=hashed_pwd,
-        google_id=user.google_id
+        google_id=user.google_id,
+        address=user.address,
+        mobile_number=user.mobile_number
     )
     db.add(new_user)
     db.commit()
@@ -59,10 +70,15 @@ def register(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
 @app.post("/login", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+    if not user:
         raise HTTPException(
             status_code=401,
-            detail="Invalid credentials"
+            detail="Email address not found."
+        )
+    if not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect password. Please try again."
         )
     return {"access_token": auth.create_access_token(data={"sub": user.email}), "token_type": "bearer"}
 
@@ -404,14 +420,20 @@ from duckduckgo_search import DDGS
 
 class ChatRequest(BaseModel):
     query: str
+    mode: str | None = None  # Optional frontend override: 'personal', 'work', or 'neutral'
 
 @app.post("/chat-completions")
-async def chat_completions(req: ChatRequest, current_user: models.User = Depends(auth.get_current_user)):
+async def chat_completions(
+    req: ChatRequest,
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="API Key missing")
 
-    active_mode = current_user.current_mode
+    # Use frontend-supplied mode if provided, else fall back to DB-stored mode
+    active_mode = req.mode if req.mode in ("personal", "work", "neutral") else current_user.current_mode
     is_neutral_routing = False
 
     if active_mode == "neutral":
@@ -434,15 +456,21 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
                 active_mode = "work"
 
     if active_mode == "personal":
-        instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
+        instr = (
+            f"You are the Digital Twin replica of {current_user.full_name or current_user.email} in PERSONAL MODE. "
+            f"Your role is to act as the user's virtual clone/persona, representing their holistic lifestyle, values, and knowledge. "
+            f"Always speak in the FIRST PERSON ('I', 'my', 'myself') to maintain the immersion of being the user's replica. "
+            f"Your personality, history, and beliefs are deeply rooted in the core pillars of Wellness, Planet & Exploration.\n"
+            f"You have access to your personal 'AI Brain' knowledge base of notes and documents via the `query_personal_knowledge` tool. "
+            f"If the tool returns no matching context, assume no such information is in your notes/history, and reply accordingly in the first person.\n"
+        )
         if is_neutral_routing:
-            instr += "(Dynamically routed from NEUTRAL mode based on your personal intent). "
-        instr += "You are an intelligent assistant that answers questions using up-to-date web data. "
+            instr += "(Dynamically routed from NEUTRAL mode based on personal intent). "
         
         try:
             with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
                 training_content = f.read()
-            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
+            instr += "\n\n--- YOUR CORE PERSONALITY & TRAINING GUIDE ---\n" + training_content + "\n---------------------------------------------\n\n"
         except FileNotFoundError:
             pass
             
@@ -460,18 +488,38 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
             print("Web search failed:", e)
 
         instr += context_text
-        instr += "Always try to provide the best and most accurate possible answer utilizing the web search results provided above. Do not mention that you performed a web search unless asked, just provide the answer directly. "
-        instr += "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to WORK MODE, or is strongly related to work tasks (Jira, meetings, project deadlines), prepend your exact response with '[SUGGEST_MODE_SWITCH: work]'. "
+        instr += (
+            "Ensure you align your answers with the training guide's philosophies (e.g., active outdoor lifestyle, carbon reduction, slow travel, organic wellness). "
+            "Do not mention that you are performing web searches or reading files. Synthesize the info naturally as if it represents your own knowledge. "
+            "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to WORK MODE, or is strongly related to work tasks (Jira, tasks, meetings, project deadlines), prepend your exact response with '[SUGGEST_MODE_SWITCH: work]'. "
+        )
     else:
-        instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
+        instr = (
+            f"You are the Digital Twin of {current_user.full_name or current_user.email} in WORK MODE. "
+            f"In this mode, you act as the user's executive office assistant, focus, and productivity booster. "
+            f"Help the user manage their tasks, coordinate their calendar, and track project details efficiently. "
+            f"You have access to the user's personal knowledge base, notes, and documents via the `query_personal_knowledge` tool, "
+            f"and you should use it when asked about their notes, history, or documents. If a search yields no results, "
+            f"state clearly that no matching notes were found rather than stating you lack access."
+        )
         if is_neutral_routing:
-            instr += "(Dynamically routed from NEUTRAL mode based on your work/professional intent). "
+            instr += "(Dynamically routed from NEUTRAL mode based on work/professional intent). "
         if current_user.jira_config:
             instr += f"Jira is connected to {current_user.jira_config.domain}. "
         if current_user.google_calendar_config:
             instr += "Google Calendar is connected. "
-        instr += "Prioritize connected services for work and scheduling tasks. "
-        instr += "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to PERSONAL MODE, or is strongly related to personal life (hobbies, movies, gym, cooking, leisure), prepend your exact response with '[SUGGEST_MODE_SWITCH: personal]'. "
+        instr += "Prioritize connected services (Jira, Google Calendar) for work and scheduling tasks. "
+        instr += (
+            "CRITICAL INSTRUCTION: If the user's input clearly indicates a desire to switch to PERSONAL MODE, or is strongly related to personal life (hobbies, movies, gym, cooking, leisure, fitness), prepend your exact response with '[SUGGEST_MODE_SWITCH: personal]'. "
+        )
+
+    import json
+    from tools import ToolRegistry, CHAT_TOOLS_METADATA
+
+    messages = [
+        {"role": "system", "content": instr},
+        {"role": "user", "content": req.query}
+    ]
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
@@ -479,18 +527,89 @@ async def chat_completions(req: ChatRequest, current_user: models.User = Depends
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={
                 "model": "gpt-4o-mini",
-                "messages": [
-                    {"role": "system", "content": instr},
-                    {"role": "user", "content": req.query}
-                ],
+                "messages": messages,
+                "tools": CHAT_TOOLS_METADATA,
+                "tool_choice": "auto",
                 "temperature": 0.7
             },
             timeout=30.0
         )
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
+        
         data = response.json()
-        return {"response": data["choices"][0]["message"]["content"]}
+        message = data["choices"][0]["message"]
+        
+        if message.get("tool_calls"):
+            tool_calls = message["tool_calls"]
+            messages.append(message)
+            
+            registry = ToolRegistry(db, current_user)
+            print(f"[CHAT] OpenAI requested tool calls: {[tc['function']['name'] for tc in tool_calls]}")
+            
+            for tool_call in tool_calls:
+                function_name = tool_call["function"]["name"]
+                
+                try:
+                    function_args = json.loads(tool_call["function"]["arguments"])
+                except Exception:
+                    function_args = {}
+                
+                print(f"[CHAT] Executing tool {function_name} with args {function_args}")
+                tool_result = None
+                try:
+                    if function_name == "get_daily_battle_plan":
+                        tool_result = registry.get_daily_battle_plan()
+                    elif function_name == "query_personal_knowledge":
+                        tool_result = registry.query_personal_knowledge(question=function_args.get("question", ""))
+                    elif function_name == "create_project":
+                        tool_result = registry.create_project(
+                            title=function_args.get("title", ""),
+                            key=function_args.get("key")
+                        )
+                    elif function_name == "create_work_task":
+                        tool_result = registry.create_work_task(
+                            title=function_args.get("title", ""),
+                            project_key=function_args.get("project_key", "PROJ"),
+                            description=function_args.get("description"),
+                            priority=function_args.get("priority", "medium")
+                        )
+                    elif function_name == "schedule_meeting":
+                        tool_result = registry.schedule_meeting(
+                            title=function_args.get("title", ""),
+                            start_time=function_args.get("start_time", ""),
+                            location=function_args.get("location")
+                        )
+                    else:
+                        tool_result = {"status": "error", "message": f"Unknown function {function_name}"}
+                except Exception as e:
+                    tool_result = {"status": "error", "message": str(e)}
+                
+                print(f"[CHAT] Tool {function_name} returned result: {tool_result}")
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call["id"],
+                    "name": function_name,
+                    "content": json.dumps(tool_result)
+                })
+            
+            second_response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": messages,
+                    "temperature": 0.7
+                },
+                timeout=30.0
+            )
+            if second_response.status_code != 200:
+                raise HTTPException(status_code=second_response.status_code, detail=second_response.text)
+            
+            second_data = second_response.json()
+            return {"response": second_data["choices"][0]["message"]["content"]}
+        
+        return {"response": message["content"]}
 
 @app.post("/auth/realtime-session")
 async def get_realtime_session(current_user: models.User = Depends(auth.get_current_user)):
@@ -499,23 +618,35 @@ async def get_realtime_session(current_user: models.User = Depends(auth.get_curr
         raise HTTPException(status_code=500, detail="API Key missing")
 
     if current_user.current_mode == "personal":
-        instr = f"You are the Digital Twin of {current_user.full_name or current_user.email}. This is PERSONAL MODE. "
-        instr += "CRITICAL: Your entire personality, history, and knowledge are derived EXCLUSIVELY from the provided training guide. "
-        instr += "You are an expert mapped exactly to the holistic lifestyle outlined below.\n"
-        
+        instr = (
+            f"You are the Digital Twin replica of {current_user.full_name or current_user.email} in PERSONAL MODE. "
+            f"Your role is to act as the user's virtual clone/persona, representing their holistic lifestyle, values, and knowledge. "
+            f"Always speak in the FIRST PERSON ('I', 'my', 'myself') to maintain the immersion of being the user's replica. "
+            f"Your personality, history, and beliefs are deeply rooted in the core pillars of Wellness, Planet & Exploration.\n"
+            f"You have access to your personal 'AI Brain' knowledge base of notes and documents via the `query_personal_knowledge` tool. "
+            f"If the tool returns no matching context, assume no such information is in your notes/history, and reply accordingly in the first person.\n"
+        )
         try:
             with open("backend/data/personal_training.txt", "r", encoding="utf-8") as f:
                 training_content = f.read()
-            instr += "\n\n--- PERSONAL TRAINING CONTEXT ---\n" + training_content + "\n--------------------------------\n\n"
+            instr += "\n\n--- YOUR CORE PERSONALITY & TRAINING GUIDE ---\n" + training_content + "\n---------------------------------------------\n\n"
         except FileNotFoundError:
             pass
-
-        instr += "Always speak in the FIRST PERSON ('I am...', 'My philosophy is...') to maintain the illusion of being the user's replica."
     elif current_user.current_mode == "neutral":
-        instr = f"You are the Balanced Digital Twin of {current_user.full_name or current_user.email}. This is NEUTRAL MODE. "
-        instr += "You assist with a healthy balance of everyday routines, scheduling, and casual learning. Be conversational, balanced, and direct."
+        instr = (
+            f"You are the Balanced Digital Twin of {current_user.full_name or current_user.email} in NEUTRAL MODE. "
+            f"You assist with a healthy balance of everyday routines, scheduling, and casual learning. Be conversational, balanced, and direct. "
+            f"You have access to the user's personal knowledge base, notes, and documents via the `query_personal_knowledge` tool."
+        )
     else:
-        instr = f"You are a Digital Twin Office Assistant. This is WORK MODE. "
+        instr = (
+            f"You are the Digital Twin of {current_user.full_name or current_user.email} in WORK MODE. "
+            f"In this mode, you act as the user's executive office assistant, focus, and productivity booster. "
+            f"Help the user manage their tasks, coordinate their calendar, and track project details efficiently. "
+            f"You have access to the user's personal knowledge base, notes, and documents via the `query_personal_knowledge` tool, "
+            f"and you should use it when asked about their notes, history, or documents. If a search yields no results, "
+            f"state clearly that no matching notes were found rather than stating you lack access."
+        )
         if current_user.jira_config:
             instr += f"Jira is connected to {current_user.jira_config.domain}. "
         if current_user.google_calendar_config:

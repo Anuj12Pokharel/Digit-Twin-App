@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   TextInput, KeyboardAvoidingView, Platform, Image, Alert,
-  ActivityIndicator, Modal, FlatList,
+  ActivityIndicator, Modal, FlatList, Animated, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import api from '../api/api';
 import { useTheme } from '../context/ThemeContext';
 
+const { width, height } = Dimensions.get('window');
 const BLUE = '#2563EB';
 
 // ── Country list ──────────────────────────────────────────────────────────────
@@ -119,8 +120,8 @@ function CountryPickerModal({ visible, onSelect, onClose }) {
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function EditProfileScreen({ navigation }) {
   const { colors: theme, isDarkMode } = useTheme();
-  const [user, setUser] = useState({ full_name: '', email: '' });
-  const [phone, setPhone] = useState('308.555.0121');
+  const [user, setUser] = useState({ full_name: '', email: '', address: '', mobile_number: '' });
+  const [phone, setPhone] = useState('');
   const [country, setCountry] = useState(COUNTRIES[0]); // default USA
   const [dob, setDob] = useState(new Date(2000, 10, 24)); // Nov 24 2000
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -128,14 +129,56 @@ export default function EditProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const stars = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * (height * 0.75),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
   useEffect(() => {
-    api.get('/me').then(res => setUser(res.data)).catch(() => {});
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    api.get('/me')
+      .then(res => {
+        setUser(res.data);
+        if (res.data.mobile_number) {
+          setPhone(res.data.mobile_number);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.patch('/users/me', { full_name: user.full_name });
+      await api.patch('/users/me', {
+        full_name: user.full_name,
+        address: user.address,
+        mobile_number: phone,
+      });
       navigation.goBack();
     } catch {
       Alert.alert('Error', 'Failed to save profile. Please try again.');
@@ -190,11 +233,50 @@ export default function EditProfileScreen({ navigation }) {
 
   return (
     <LinearGradient colors={theme.gradient} style={styles.gradient}>
+      {/* Absolute twinkling star backdrop for high-end dark mode */}
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={styles.safe}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={[styles.backBtn, { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)' }]} onPress={() => navigation.goBack()}>
-            <Text style={[styles.backIcon, { color: theme.text }]}>←</Text>
+          <TouchableOpacity
+            style={[
+              styles.backBtn,
+              {
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+                borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 6,
+                elevation: 3,
+              },
+            ]}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={[styles.backIcon, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Profile</Text>
           <View style={{ width: 40 }} />
@@ -248,6 +330,20 @@ export default function EditProfileScreen({ navigation }) {
                 />
               </View>
               <Text style={styles.fieldHint}>Email cannot be changed</Text>
+            </View>
+
+            {/* Address */}
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>Address</Text>
+              <View style={[styles.inputCard, { backgroundColor: theme.card }]}>
+                <TextInput
+                  style={[styles.input, { color: theme.text }]}
+                  value={user.address || ''}
+                  onChangeText={v => setUser({ ...user, address: v })}
+                  placeholder="Enter your address"
+                  placeholderTextColor="#A0AABF"
+                />
+              </View>
             </View>
 
             {/* Phone Number with Country Picker */}
@@ -353,10 +449,32 @@ export default function EditProfileScreen({ navigation }) {
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   safe: { flex: 1 },
+  star: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    top: -50,
+    left: -50,
+    opacity: 0.8,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    bottom: -50,
+    right: -50,
+    opacity: 0.8,
+  },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 20 },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center' },
-  backIcon: { fontSize: 18, color: '#0F172A' },
+  backBtn: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
+  backIcon: { fontSize: 26, fontWeight: '800' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
 
   scroll: { paddingHorizontal: 20, paddingBottom: 30 },

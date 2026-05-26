@@ -1,14 +1,46 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Animated, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomNavBar from '../components/BottomNavBar';
 import { useTheme } from '../context/ThemeContext';
 
+const { width, height } = Dimensions.get('window');
 const BLUE = '#2563EB';
 
 export default function IntegrationSuccessScreen({ navigation }) {
   const { colors: theme, isDarkMode } = useTheme();
+
+  const stars = useRef(
+    Array.from({ length: 15 }).map(() => ({
+      x: Math.random() * width,
+      y: Math.random() * (height * 0.75),
+      size: Math.random() * 2.5 + 1.2,
+      opacity: new Animated.Value(Math.random() * 0.4 + 0.1),
+    }))
+  ).current;
+
+  useEffect(() => {
+    if (isDarkMode) {
+      stars.forEach((star) => {
+        const twinkle = () => {
+          Animated.sequence([
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.8 + 0.2,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(star.opacity, {
+              toValue: Math.random() * 0.25 + 0.05,
+              duration: Math.random() * 2000 + 1000,
+              useNativeDriver: true,
+            }),
+          ]).start(() => twinkle());
+        };
+        twinkle();
+      });
+    }
+  }, [isDarkMode]);
 
   const handleNav = (tab) => {
     if (tab === 'Home') navigation.navigate('Home');
@@ -19,7 +51,28 @@ export default function IntegrationSuccessScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <LinearGradient colors={theme.gradient} style={StyleSheet.absoluteFillObject} />
-      
+      {isDarkMode && stars.map((star, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.star,
+            {
+              left: star.x,
+              top: star.y,
+              width: star.size,
+              height: star.size,
+              borderRadius: star.size / 2,
+              opacity: star.opacity,
+            },
+          ]}
+        />
+      ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={styles.safe} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
@@ -80,6 +133,9 @@ export default function IntegrationSuccessScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
+  star: { position: 'absolute', backgroundColor: '#FFFFFF' },
+  ambientCircle1: { position: 'absolute', width: 250, height: 250, borderRadius: 125, top: -50, left: -50, opacity: 0.8 },
+  ambientCircle2: { position: 'absolute', width: 300, height: 300, borderRadius: 150, bottom: -50, right: -50, opacity: 0.8 },
 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 16 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },

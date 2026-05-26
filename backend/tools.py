@@ -142,3 +142,17 @@ TOOLS_METADATA = [
         }
     }
 ]
+
+CHAT_TOOLS_METADATA = []
+for tool in TOOLS_METADATA:
+    chat_tool = {
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "parameters": tool["parameters"]
+        }
+    }
+    if "description" in tool:
+        chat_tool["function"]["description"] = tool["description"]
+    CHAT_TOOLS_METADATA.append(chat_tool)
+

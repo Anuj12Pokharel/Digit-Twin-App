@@ -16,6 +16,8 @@ class TaskStatus(Enum):
 class UserBase(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
+    address: Optional[str] = None
+    mobile_number: Optional[str] = None
 
 class UserCreate(UserBase):
     password: Optional[str] = None
@@ -23,6 +25,8 @@ class UserCreate(UserBase):
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = None
+    address: Optional[str] = None
+    mobile_number: Optional[str] = None
     current_mode: Optional[str] = None
     avatar_url: Optional[str] = None
     slack_connected: Optional[bool] = None

@@ -28,64 +28,128 @@ function greeting() {
   return h < 12 ? 'Good Morning!' : h < 17 ? 'Good Afternoon!' : 'Good Evening!';
 }
 
-// ── Custom Toggle Switch ──
-const ModeToggle = ({ mode, onToggle }) => {
-  const modes = ['personal', 'neutral', 'work'];
-  const currentIndex = modes.indexOf(mode) !== -1 ? modes.indexOf(mode) : 0;
-  const anim = useRef(new Animated.Value(currentIndex)).current;
+// ── Animated Header Title (Digit App & Welcome Message) ──
+const AnimatedHeaderTitle = ({ isDarkMode }) => {
+  const [index, setIndex] = useState(0);
+  const messages = ['Digit App', 'Welcome!', 'Digital Twin'];
+  
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(anim, {
-      toValue: currentIndex,
-      duration: 250,
-      useNativeDriver: false
-    }).start();
-  }, [currentIndex]);
+    const interval = setInterval(() => {
+      // 1. Move left and fade out
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: -30,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Change text
+        setIndex((prevIndex) => (prevIndex + 1) % messages.length);
+        // Reset slide position to the right
+        slideAnim.setValue(30);
+        // 2. Move in from the right to the center and fade in
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      });
+    }, 3500);
 
-  const bg = anim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [
-      'rgba(16, 185, 129, 0.15)', // personal (emerald)
-      'rgba(6, 182, 212, 0.15)',  // neutral (cyan)
-      'rgba(139, 92, 246, 0.25)'  // work (purple)
-    ]
-  });
-  
-  const border = anim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [
-      'rgba(16, 185, 129, 0.3)',
-      'rgba(6, 182, 212, 0.3)',
-      'rgba(139, 92, 246, 0.4)'
-    ]
-  });
-
-  const circleX = anim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [2, 38, 74]
-  });
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <View style={{ alignItems: 'center' }}>
-      <TouchableOpacity 
-        activeOpacity={0.9} 
-        onPress={() => {
-          const nextIndex = (currentIndex + 1) % 3;
-          onToggle(modes[nextIndex]);
+    <View style={{ flex: 2, alignItems: 'center', justifyContent: 'center', height: 44 }}>
+      <Animated.Text
+        style={{
+          fontSize: 16,
+          fontWeight: '900',
+          letterSpacing: 0.8,
+          color: isDarkMode ? '#00F0FF' : '#0F172A',
+          opacity: fadeAnim,
+          transform: [{ translateX: slideAnim }],
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          textShadowColor: isDarkMode ? 'rgba(0, 240, 255, 0.4)' : 'rgba(0, 0, 0, 0.05)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 6,
         }}
       >
-        <Animated.View style={[styles.toggleWrap, { backgroundColor: bg, borderColor: border, width: 108 }]}>
-          <Animated.View style={[styles.toggleCircle, { transform: [{ translateX: circleX }] }]}>
-            <Text style={{ fontSize: 14 }}>
-              {mode === 'work' ? '💼' : mode === 'neutral' ? '⚖️' : '🌿'}
-            </Text>
-          </Animated.View>
-        </Animated.View>
-      </TouchableOpacity>
-      <Text style={{ fontSize: 10, color: '#94A3B8', marginTop: 4, fontWeight: '700', letterSpacing: 0.5 }}>
-        {mode === 'work' ? 'WORK MODE' : mode === 'neutral' ? 'NEUTRAL MODE' : 'PERSONAL MODE'}
-      </Text>
+        {messages[index]}
+      </Animated.Text>
     </View>
+  );
+};
+
+// ── Typewriter Text Component with Stochastic Delay and Punctuation Pauses ──
+const TypewriterText = ({ text, style }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [cursorVisible, setCursorVisible] = useState(true);
+
+  useEffect(() => {
+    let index = 0;
+    let isMounted = true;
+    setDisplayedText('');
+    
+    const typeNextChar = () => {
+      if (!isMounted) return;
+      
+      setDisplayedText((prev) => {
+        if (index < text.length) {
+          const nextChar = text.charAt(index);
+          index++;
+          
+          // Stochastic keypress delay (15ms to 35ms)
+          let nextDelay = 15 + Math.random() * 20;
+          
+          // Syntactic punctuation pausing for natural breathing room
+          if (['.', '!', '?'].includes(nextChar)) {
+            nextDelay = 450; 
+          } else if ([',', ';', ':'].includes(nextChar)) {
+            nextDelay = 220;
+          }
+          
+          setTimeout(typeNextChar, nextDelay);
+          return prev + nextChar;
+        } else {
+          return prev;
+        }
+      });
+    };
+    
+    typeNextChar();
+
+    const cursorInterval = setInterval(() => {
+      if (isMounted) setCursorVisible((v) => !v);
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(cursorInterval);
+    };
+  }, [text]);
+
+  return (
+    <Text style={style}>
+      {displayedText}
+      <Text style={{ color: '#00F0FF', fontWeight: 'bold', opacity: cursorVisible ? 1 : 0 }}>▋</Text>
+    </Text>
   );
 };
 
@@ -224,6 +288,12 @@ export default function HomeScreen({ navigation, onLogout }) {
           ]}
         />
       ))}
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
 
       <SafeAreaView style={styles.safe}>
         <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
@@ -248,8 +318,7 @@ export default function HomeScreen({ navigation, onLogout }) {
                   )}
                 </TouchableOpacity>
               </View>
-
-              <ModeToggle mode={mode} onToggle={handleModeChange} />
+              <AnimatedHeaderTitle isDarkMode={isDarkMode} />
 
               <View style={[styles.headerSide, { alignItems: 'flex-end' }]}>
                 <TouchableOpacity
@@ -272,16 +341,21 @@ export default function HomeScreen({ navigation, onLogout }) {
               </Text>
               
               <View style={[styles.modeHighlightCard, isDarkMode && styles.modeHighlightCardDark]}>
-                 <Text style={[styles.modeHighlightTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A' }]}>
-                   {mode === 'work' ? 'Productivity at its Peak 🚀' : mode === 'neutral' ? 'Balanced & Steady ⚖️' : 'Relax & Create ✨'}
-                 </Text>
-                 <Text style={[styles.modeHighlightDesc, { color: isDarkMode ? '#94A3B8' : '#475569' }]}>
-                   {mode === 'work' 
-                     ? 'Work mode is active. Ready to manage tasks, schedule meetings, and boost your workflow.' 
-                     : mode === 'neutral'
-                     ? 'Neutral mode is active. Balanced focus for general tasks, quick queries, and organizing your routine.'
-                     : 'Personal mode is active. Let’s explore ideas, generate creative content, and organize your day.'}
-                 </Text>
+                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}>
+                   <Image 
+                     source={require('../../assets/digit_mascot_3d.png')} 
+                     style={{ width: 28, height: 28, marginRight: 8, borderRadius: 6 }} 
+                   />
+                   <Text style={[styles.modeHighlightTitle, { color: isDarkMode ? '#FFFFFF' : '#0F172A', marginBottom: 0 }]}>
+                     Hey! I am Digit App
+                   </Text>
+                 </View>
+                  <TypewriterText
+                    text={
+                      "Welcome to the Digit App! I am your friendly companion designed to make your daily life easier. On this screen, you can access three main modes:\n\n1. 🌿 Personal Mode: Focuses on your wellness, personal habits, health, hobbies, and secure notes. Tap below to brainstorm creative projects, manage your journals, or talk about your lifestyle routines in a private, secure environment.\n\n2. 💼 Work Mode: Acts as your digital office assistant. Syncs directly with Jira and Google Calendar to organize meetings, view tasks, coordinate deadlines, and write professional messages to skyrocket your productivity.\n\n3. ⚖️ Neutral Mode: The balanced default active when both specific modes are turned off. Perfect for general queries, casual search topics, daily scheduling, and tracking standard daily activities smoothly.\n\nClick 'Start New Chat' below to open the conversation terminal and start chatting with me in your preferred mode!"
+                    }
+                    style={[styles.modeHighlightDesc, { color: isDarkMode ? '#94A3B8' : '#475569' }]}
+                  />
               </View>
             </View>
 
@@ -365,6 +439,23 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: '#FFFFFF',
   },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -60,
+    right: -60,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    bottom: '25%',
+    left: -60,
+  },
+
 
   // Header
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, paddingTop: 8 },

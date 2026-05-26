@@ -49,14 +49,20 @@ function BackBtn({ onPress }) {
       style={[
         styles.backBtn, 
         { 
-          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.7)',
-          shadowColor: colors.bottomNavShadow,
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.12)' : '#FFFFFF',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 6,
+          elevation: 3,
         }
       ]} 
       onPress={onPress} 
       activeOpacity={0.7}
+      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
     >
-      <Text style={[styles.backBtnText, { color: colors.text }]}>←</Text>
+      <Text style={[styles.backBtnText, { color: isDarkMode ? '#FFFFFF' : '#0A0A0A' }]}>←</Text>
     </TouchableOpacity>
   );
 }
@@ -406,6 +412,12 @@ export default function ForgotPasswordScreen({ navigation }) {
 
   return (
     <LinearGradient colors={isDarkMode ? ['#081E2D', '#05141E', '#030A0F'] : ['#EBF4FF', '#D6EAFF', '#C2DDFF']} style={{ flex: 1 }}>
+      {isDarkMode && (
+        <>
+          <View style={[styles.ambientCircle1, { backgroundColor: 'rgba(0, 240, 255, 0.12)' }]} />
+          <View style={[styles.ambientCircle2, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]} />
+        </>
+      )}
       <SafeAreaView style={{ flex: 1 }}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -431,24 +443,35 @@ const styles = StyleSheet.create({
     paddingTop: 20,
     paddingBottom: 40,
   },
+  ambientCircle1: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    top: -60,
+    right: -60,
+  },
+  ambientCircle2: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    bottom: '25%',
+    left: -60,
+  },
 
   // Header
   headerSection: { marginBottom: 32 },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 28,
-    shadowColor: '#94A3B8',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
+    borderWidth: 1.5,
   },
-  backBtnText: { fontSize: 18, color: '#1E293B', fontWeight: '600' },
+  backBtnText: { fontSize: 26, fontWeight: '800' },
   title: {
     fontSize: 26,
     fontWeight: '800',

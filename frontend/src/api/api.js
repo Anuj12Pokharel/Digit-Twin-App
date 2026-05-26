@@ -3,11 +3,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ── Change this to your machine's LAN IP when testing on a physical device ──
 // e.g. 'http://192.168.1.42:8000'
-const API_BASE_URL = 'http://192.168.0.102:8003';
+const API_BASE_URL = 'http://192.168.18.4:8003';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 45000,
 });
 
 // Attach JWT from storage to every request
@@ -36,12 +36,14 @@ api.interceptors.response.use(
  * Register a new user. Returns { access_token, token_type }.
  * Backend endpoint: POST /register then POST /login
  */
-export async function registerUser({ fullName, email, password }) {
+export async function registerUser({ fullName, email, password, address, mobileNumber }) {
   // Step 1: create account
   await api.post('/register', {
     full_name: fullName,
     email,
     password,
+    address,
+    mobile_number: mobileNumber,
   });
   // Step 2: immediately log in to get a token
   return loginUser({ email, password });
