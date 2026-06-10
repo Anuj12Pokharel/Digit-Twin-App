@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8003:8003"
+    volumes:
+      # Mount backend folder for live-reload development
+      - ./backend:/app
+      # Persist SQLite database and uploads on the host machine
+      - ./backend/digital_twin.db:/app/digital_twin.db
+      - ./backend/uploads:/app/uploads
+    env_file:
+      - ./backend/.env
+    command: sh -c "python -m alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8003"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    volumes:
+      # Mount frontend folder for hot reloading
+      - ./frontend:/app
+      # Exclude node_modules so container dependencies are not overwritten by host
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CI=1
+      - EXPO_PUBLIC_API_URL=http://localhost:8003
+    depends_on:
+      - backend
+    restart: unless-stopped

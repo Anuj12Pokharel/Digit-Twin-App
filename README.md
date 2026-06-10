@@ -119,6 +119,31 @@ npx expo start
 
 ---
 
+## Run with Docker Compose
+
+If you have Docker installed, you can run both the frontend and backend services connected to each other using Docker Compose.
+
+### 1. Configure Backend Environment
+Ensure you have created `backend/.env` from `backend/.env.example` and configured your `OPENAI_API_KEY` (and other credentials if applicable).
+
+### 2. Configure Frontend API URL (Optional)
+By default, the frontend will connect to the backend at `http://localhost:8003`. If you want to connect a physical device (using the Expo Go app), change the `EXPO_PUBLIC_API_URL` environment variable inside [docker-compose.yml](file:///c:/Users/hp/Desktop/anuj/docker-compose.yml) to your computer's local LAN IP.
+
+### 3. Build and Start the Services
+From the root directory of the project, run:
+```bash
+docker compose up --build
+```
+
+### 4. Access the Services
+- **Frontend (Expo Web)**: [http://localhost:8081](http://localhost:8081)
+- **Backend (FastAPI)**: [http://localhost:8003](http://localhost:8003)
+- **API Documentation**: [http://localhost:8003/docs](http://localhost:8003/docs)
+
+*Note: The SQLite database (`digital_twin.db`) and the uploads directory are mapped as volumes, ensuring database changes and uploaded files persist across container builds.*
+
+---
+
 ## Navigation Flow
 
 ```
